@@ -127,7 +127,15 @@ export default function App(){
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="x" type="number" domain={[0, Math.max(100, xMax)]} />
             <YAxis dataKey="y_cm" type="number" domain={[Math.min(...dataCm.map(d=>d.y_cm),0)-50, Math.max(...dataCm.map(d=>d.y_cm),0)+50]} />
-            <Tooltip formatter={(v)=>[`${(+v).toFixed(0)} см`,'высота']} />
+<Tooltip
+  formatter={(v) => [`${(+v).toFixed(0)} см`, 'высота']}
+  labelFormatter={(x) => `дистанция: ${(+x).toFixed(1)} м`}
+  contentStyle={{
+    background: 'var(--card)',
+    color: 'var(--text)',
+    borderColor: 'var(--border)',
+  }}
+/>
             <ReferenceLine y={0} strokeDasharray="3 3" />
             <Line type="monotone" dataKey="y_cm" dot={false} strokeWidth={2} />
           </LineChart>
