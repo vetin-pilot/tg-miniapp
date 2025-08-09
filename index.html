@@ -6,15 +6,26 @@
     <title>Симулятор траектории</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-      :root { --bg: #f7f7f7; --text: #111; }
-      body { margin: 0; background: var(--bg); color: var(--text); font-family: system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
-      #root { min-height: 100vh; }
-      .card { background:#fff; border-radius:16px; padding:16px; box-shadow:0 2px 12px rgba(0,0,0,.06); }
-      .btn { padding:10px 14px; border-radius:10px; border:1px solid rgba(0,0,0,.15); background:#fff; cursor:pointer; }
-      .btn-primary { background:#4F46E5; color:#fff; border-color:#4F46E5; }
-      .pill { padding:4px 8px; border-radius:999px; background:#eef2ff; color:#3730a3; font-weight:600; font-size:12px; }
-      label { display:flex; flex-direction:column; gap:6px; }
-      input[type="number"], input[type="range"] { padding:8px 10px; border:1px solid rgba(0,0,0,.15); border-radius:10px; background:#fff; }
+      :root{
+        --bg:#f7f7f7;
+        --text:#111;
+        --card:#ffffff;
+        --border:rgba(0,0,0,.15);
+        --button:#4F46E5;
+        --button-text:#fff;
+      }
+      body{ margin:0; background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;}
+      #root{ min-height:100vh; }
+      .card{ background:var(--card); color:var(--text); border-radius:16px; padding:16px; box-shadow:0 2px 12px rgba(0,0,0,.06); }
+      label{ display:flex; flex-direction:column; gap:6px; }
+      input, button{ font:inherit; }
+      input[type="number"], input[type="range"]{
+        padding:8px 10px; border-radius:10px; border:1px solid var(--border);
+        background:var(--card); color:var(--text);
+      }
+      .btn{ padding:10px 14px; border-radius:10px; border:1px solid var(--border); background:var(--card); color:var(--text); }
+      .btn-primary{ background:var(--button); border-color:var(--button); color:var(--button-text); }
+      .pill{ padding:4px 8px; border-radius:999px; background:rgba(0,0,0,.08); color:var(--text); font-weight:600; font-size:12px; }
     </style>
   </head>
   <body>
