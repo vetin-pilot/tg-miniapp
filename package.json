@@ -1,6 +1,6 @@
 {
   "name": "tg-miniapp-projectile-supabase",
-  "version": "1.5.1",
+  "version": "1.6.1",
   "private": true,
   "type": "module",
   "scripts": {
