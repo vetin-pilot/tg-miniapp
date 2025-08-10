@@ -52,40 +52,63 @@ const toCSV=(h,rows)=>h.join(',')+'\n'+rows.map(r=>h.map(k=>{
 export default function App(){
     const [ent,setEnt]=useState({ trial_left_s:0, sub_active:false });
     const [loadingEnt,setLoadingEnt]=useState(true);
-    const [priceStars,setPriceStars]=useState(300); // подтянем с бэкенда
+    const [priceStars,setPriceStars]=useState(150); // подтянем с бэкенда
+    const [botUsername, setBotUsername] = useState('');
+    const [needStart, setNeedStart] = useState(false);   // покажем модалку, если боту нельзя писать
 
-    useEffect(()=>{
-        const tg=window.Telegram?.WebApp;
-        const applyTheme=()=>{
-            const p=tg?.themeParams||{}; const pick=(k,d)=> (p[k]?p[k]:d);
-            document.documentElement.style.setProperty('--bg', pick('bg_color','#0f0f0f'));
-            document.documentElement.style.setProperty('--text', pick('text_color','#ffffff'));
-            document.documentElement.style.setProperty('--card', pick('secondary_bg_color','#1c1c1c'));
-            document.documentElement.style.setProperty('--border', pick('hint_color','rgba(255,255,255,.2)'));
-            document.documentElement.style.setProperty('--button', pick('button_color','#4F46E5'));
-            document.documentElement.style.setProperty('--button-text', pick('button_text_color','#ffffff'));
-            document.documentElement.style.setProperty('--muted', pick('hint_color','rgba(255,255,255,.6)'));
+    useEffect(() => {
+        const tg = window.Telegram?.WebApp;
+
+        const applyTheme = () => {
+            const p = tg?.themeParams || {};
+            const pick = (k, d) => (p[k] ? p[k] : d);
+            document.documentElement.style.setProperty('--bg', pick('bg_color', '#0f0f0f'));
+            document.documentElement.style.setProperty('--text', pick('text_color', '#ffffff'));
+            document.documentElement.style.setProperty('--card', pick('secondary_bg_color', '#1c1c1c'));
+            document.documentElement.style.setProperty('--border', pick('hint_color', 'rgba(255,255,255,.2)'));
+            document.documentElement.style.setProperty('--button', pick('button_color', '#4F46E5'));
+            document.documentElement.style.setProperty('--button-text', pick('button_text_color', '#ffffff'));
+            document.documentElement.style.setProperty('--muted', pick('hint_color', 'rgba(255,255,255,.6)'));
         };
+
         applyTheme();
 
-        // конфиг (цена в звёздах)
-        fetch('/api/config').then(r=>r.json()).then(j=>{ if(j?.PRO_PRICE_STARS) setPriceStars(parseInt(j.PRO_PRICE_STARS,10)||priceStars); }).catch(()=>{});
+        // Тянем конфиг с сервера (цена и имя бота)
+        fetch('/api/config')
+            .then(r => r.json())
+            .then(j => {
+                if (j?.BOT_USERNAME) setBotUsername(j.BOT_USERNAME);
+                if (j?.PRO_PRICE_STARS && typeof setPriceStars === 'function') {
+                    setPriceStars(parseInt(j.PRO_PRICE_STARS, 10) || 150);
+                }
+            })
+            .catch(() => { /* игнорим сетевые ошибки */ });
 
-        const fetchEnt = (qs) => fetch('/api/entitlement?'+qs).then(r=>r.json()).then(setEnt).finally(()=>setLoadingEnt(false));
+        const fetchEnt = (qs) =>
+            fetch('/api/entitlement?' + qs)
+                .then(r => r.json())
+                .then(setEnt)
+                .finally(() => setLoadingEnt(false));
 
-        if(tg){
-            tg.ready(); tg.expand(); tg.onEvent('themeChanged', applyTheme);
-            tg.BackButton.show(); tg.BackButton.onClick(()=>tg.close());
-            tg.MainButton.setText('Закрыть'); tg.MainButton.show(); tg.onEvent('mainButtonClicked',()=>tg.close());
+        if (tg) {
+            tg.ready();
+            tg.expand();
+            tg.onEvent('themeChanged', applyTheme);
+            tg.BackButton.show();
+            tg.BackButton.onClick(() => tg.close());
+            tg.MainButton.setText('Закрыть');
+            tg.MainButton.show();
+            tg.onEvent('mainButtonClicked', () => tg.close());
 
-            const initData=tg.initData||''; const uid=tg.initDataUnsafe?.user?.id;
-            if (initData) fetchEnt('initData='+encodeURIComponent(initData));
-            else if (uid) fetchEnt('user_id='+encodeURIComponent(uid));
+            const initData = tg.initData || '';
+            const uid = tg.initDataUnsafe?.user?.id;
+            if (initData) fetchEnt('initData=' + encodeURIComponent(initData));
+            else if (uid) fetchEnt('user_id=' + encodeURIComponent(uid));
             else fetchEnt('dev=1');
         } else {
             fetchEnt('dev=1');
         }
-    },[]);
+    }, []);
 
     const trialLeft = useMemo(()=>{const s=ent.trial_left_s|0; const d=Math.max(0,Math.floor(s/86400)), h=Math.max(0,Math.floor((s%86400)/3600)); return `${d} д ${h} ч`;},[ent.trial_left_s]);
     const canUse=ent.sub_active || ent.trial_left_s>0;
@@ -137,31 +160,40 @@ export default function App(){
 
     // --- отправка CSV в чат ---
     const sendCsvToChat = async (filename, csv) => {
-        const tg=window.Telegram?.WebApp;
-        const initData=tg?.initData||'';
-        const userId=tg?.initDataUnsafe?.user?.id; // передадим явно, чтобы работало для всех пользователей
-        const r=await fetch('/api/sendCsv',{ method:'POST', headers:{'content-type':'application/json'},
-            body: JSON.stringify({ initData, userId, filename, csv }) });
-        const j=await r.json();
-        if(!j.ok){
-            if (j.error_code==='NEED_START') {
-                alert('Чтобы получить файл, сначала откройте чат с ботом и нажмите Start. Потом вернитесь в мини-приложение и повторите.');
-            } else {
-                alert(j.error || 'Не удалось отправить файл в чат');
+        const tg = window.Telegram?.WebApp;
+        const initData = tg?.initData || '';
+        const userId = tg?.initDataUnsafe?.user?.id;
+
+        const r = await fetch('/api/sendCsv', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ initData, userId, filename, csv })
+        });
+        const j = await r.json();
+
+        if (!j.ok) {
+            if (j.error_code === 'NEED_START') {
+                setNeedStart(true);     // покажем модалку с кнопкой «Открыть чат с ботом»
+                return;
             }
-        } else {
-            alert('Файл отправлен в чат с ботом ✅');
+            alert(j.error || 'Не удалось отправить файл в чат');
+            return;
         }
+
+        alert('Файл отправлен в чат с ботом ✅');
     };
 
     const exportCorrections = async () => {
-        if(!canUse) return alert('Нужна подписка. Осталось пробного времени: ' + trialLeft);
-        const rows=samples.map(s=>({
-            distance_m:+s.distance.toFixed(0),
-            correction_m:+(s.height).toFixed(4),
-            correction_cm:+(s.height*100).toFixed(0)
+        if (!canUse) return alert('Нужна подписка. Осталось пробного времени: ' + trialLeft);
+
+        // строим таблицу «поправок» по шагу 50 м из уже посчитанных samples
+        const rows = samples.map(s => ({
+            distance_m: +s.distance.toFixed(0),
+            correction_m: +(s.height).toFixed(4),
+            correction_cm: +(s.height * 100).toFixed(0)
         }));
-        const csv=toCSV(['distance_m','correction_m','correction_cm'], rows);
+
+        const csv = toCSV(['distance_m', 'correction_m', 'correction_cm'], rows);
         await sendCsvToChat('corrections_50m.csv', csv);
     };
 
@@ -227,7 +259,7 @@ export default function App(){
                                 dataKey="y_cm"
                                 type="number"
                                 allowDecimals={false}
-                                tickFormatter={(v) => `${v}`}          // можно `${v} см`, если хочешь прямо на тиках
+                                tickFormatter={(v) => `${v}`}
                                 domain={[
                                     Math.min(...dataCm.map(d => d.y_cm), 0) - 50,
                                     Math.max(...dataCm.map(d => d.y_cm), 0) + 50
@@ -245,6 +277,44 @@ export default function App(){
                     </ResponsiveContainer>
                 </div>
             </div>
+
+            {/* модалка: нужно нажать Start у бота */}
+            {needStart && (
+                <div
+                    style={{
+                        position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999
+                    }}
+                    onClick={() => setNeedStart(false)}
+                >
+                    <div
+                        className="card"
+                        style={{ width: 'min(520px, 92vw)', padding: 16, cursor: 'default' }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <h3 style={{marginTop:0, marginBottom:8}}>Нужно нажать «Start» у бота</h3>
+                        <p style={{marginTop:0}}>
+                            Чтобы бот смог прислать файл в чат, открой диалог с ботом и нажми <b>Start</b>, затем вернись и повтори отправку.
+                        </p>
+                        <div style={{display:'flex', gap:8, marginTop:12, flexWrap:'wrap'}}>
+                            <button
+                                className="btn btn-primary"
+                                onClick={() => {
+                                    const tg = window.Telegram?.WebApp;
+                                    const link = botUsername ? `https://t.me/${botUsername}?start=app` : null;
+                                    if (link) {
+                                        if (tg?.openTelegramLink) tg.openTelegramLink(link);
+                                        else window.open(link, '_blank');
+                                    }
+                                }}
+                            >
+                                Открыть чат с ботом
+                            </button>
+                            <button className="btn" onClick={() => setNeedStart(false)}>Понятно</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
