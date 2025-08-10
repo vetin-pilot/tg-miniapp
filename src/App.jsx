@@ -91,15 +91,15 @@ export default function App(){
     const canUse=ent.sub_active || ent.trial_left_s>0;
 
     // --- контролы (строки, чтобы можно было стирать нули) ---
-    const [massGr,setMassGr]=useState('11.5');
-    const [diameterMm,setDiameterMm]=useState('7.85');
-    const [G1,setG1]=useState('0.493'); // баллистический коэффициент
-    const [v0,setV0]=useState('790');
-    const [zeroRangeStr,setZeroRangeStr]=useState('50'); // расстояние пристрелки
+    const [massGr,setMassGr]=useState('11.7');
+    const [diameterMm,setDiameterMm]=useState('7.62');
+    const [G1,setG1]=useState('0.366'); // баллистический коэффициент
+    const [v0,setV0]=useState('823');
+    const [zeroRangeStr,setZeroRangeStr]=useState('100'); // расстояние пристрелки
     const [h0,setH0]=useState('0'); // скрытый физический параметр (рост прицела), можно оставить 0
     const [tempC,setTempC]=useState('15');
     const [pressureHpa,setPressureHpa]=useState('1013.25');
-    const [xMax,setXMax]=useState(2000);
+    const [xMax,setXMax]=useState(1500);
 
     // числа
     const massKg=n(massGr,0)/1000, diameter=n(diameterMm,0), g1=n(G1,0.001), v0n=n(v0,0), h0n=n(h0,0), tempN=n(tempC,15), pressN=n(pressureHpa,1013.25);
