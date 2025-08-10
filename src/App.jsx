@@ -63,7 +63,7 @@ const toCSV = (h, rows) =>
 export default function App() {
     const [ent, setEnt] = useState({ trial_left_s: 0, sub_active: false });
     const [loadingEnt, setLoadingEnt] = useState(true);
-    const [priceStars, setPriceStars] = useState(150); // дефолт 150 ⭐
+    const [priceStars, setPriceStars] = useState(1); // дефолт 150 ⭐
     const [botUsername, setBotUsername] = useState('');
 
     useEffect(() => {
@@ -87,7 +87,7 @@ export default function App() {
             .then(r => r.json())
             .then(j => {
                 if (j?.BOT_USERNAME) setBotUsername(j.BOT_USERNAME);
-                if (j?.PRO_PRICE_STARS) setPriceStars(parseInt(j.PRO_PRICE_STARS, 10) || 150);
+                if (j?.PRO_PRICE_STARS) setPriceStars(parseInt(j.PRO_PRICE_STARS, 10) || 1);
             })
             .catch(() => {});
 
