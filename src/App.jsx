@@ -61,9 +61,9 @@ const toCSV = (h, rows) =>
     }).join(',')).join('\n') + '\n';
 
 export default function App() {
+    // оставил стейт доступа, но он больше нигде не ограничивает функционал
     const [ent, setEnt] = useState({ trial_left_s: 0, sub_active: false });
     const [loadingEnt, setLoadingEnt] = useState(true);
-    const [priceStars, setPriceStars] = useState(1); // дефолт 150 ⭐
     const [botUsername, setBotUsername] = useState('');
 
     useEffect(() => {
@@ -87,7 +87,6 @@ export default function App() {
             .then(r => r.json())
             .then(j => {
                 if (j?.BOT_USERNAME) setBotUsername(j.BOT_USERNAME);
-                if (j?.PRO_PRICE_STARS) setPriceStars(parseInt(j.PRO_PRICE_STARS, 10) || 1);
             })
             .catch(() => {});
 
@@ -96,9 +95,6 @@ export default function App() {
                 .then(r => r.json())
                 .then(setEnt)
                 .finally(() => setLoadingEnt(false));
-
-        // ------- Telegram init & события -------
-        let invoiceClosedHandler = null;
 
         if (tg) {
             tg.ready();
@@ -115,39 +111,10 @@ export default function App() {
             if (initData) fetchEnt('initData=' + encodeURIComponent(initData));
             else if (uid) fetchEnt('user_id=' + encodeURIComponent(uid));
             else fetchEnt('dev=1');
-
-            // ⬇️ ДОБАВКА: слушатель результата оплаты
-            invoiceClosedHandler = (e) => {
-                // e.status: 'paid' | 'cancelled' | 'failed'
-                if (e?.status === 'paid') {
-                    const initDataNow = tg.initData || '';
-                    fetch('/api/entitlement?initData=' + encodeURIComponent(initDataNow))
-                        .then(r => r.json())
-                        .then(setEnt)
-                        .catch(() => {});
-                }
-            };
-            tg.onEvent('invoiceClosed', invoiceClosedHandler);
-
         } else {
             fetchEnt('dev=1');
         }
-
-        // очистка слушателя при размонтировании
-        return () => {
-            if (tg && invoiceClosedHandler && typeof tg.offEvent === 'function') {
-                tg.offEvent('invoiceClosed', invoiceClosedHandler);
-            }
-        };
     }, []);
-
-    const trialLeft = useMemo(() => {
-        const s = ent.trial_left_s | 0;
-        const d = Math.max(0, Math.floor(s / 86400));
-        const h = Math.max(0, Math.floor((s % 86400) / 3600));
-        return `${d} д ${h} ч`;
-    }, [ent.trial_left_s]);
-    const canUse = ent.sub_active || ent.trial_left_s > 0;
 
     // --- контролы (строки, можно стирать нули) ---
     const [massGr, setMassGr] = useState('11.7');
@@ -229,71 +196,62 @@ export default function App() {
         return out;
     }, [xMax]);
 
+    // --- Донаты Stars ---
+    const openDonate = async (amount) => {
+        try {
+            const tg = window.Telegram?.WebApp;
+            const initData = tg?.initData || '';
+            const r = await fetch(
+                '/api/createDonateLink?amount=' + encodeURIComponent(amount) +
+                '&initData=' + encodeURIComponent(initData)
+            );
+            const j = await r.json();
+            if (!j?.ok || !j.link) return alert(j?.error || 'Не удалось создать ссылку на донат');
+
+            if (tg?.openTelegramLink) tg.openTelegramLink(j.link);
+            else window.open(j.link, '_blank');
+        } catch (e) {
+            alert('Ошибка при создании доната: ' + (e?.message || e));
+        }
+    };
+
     return (
         <div style={{ minHeight: '100vh', padding: 16 }}>
             <div style={{ maxWidth: 1200, margin: '0 auto', color: 'var(--text)' }}>
                 <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>
                     Траектория полёта — физическая модель{' '}
-                    <span className="pill">
-            {loadingEnt ? 'Проверяем доступ…' : (ent.sub_active ? 'Подписка активна' : (ent.trial_left_s > 0 ? ('Trial ' + trialLeft) : 'Нужна подписка'))}
-          </span>
+                    <span className="pill">Полный доступ • донат по желанию</span>
                 </h1>
 
-                <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-                    {!ent.sub_active && (
-                        <button
-                            className="btn btn-primary"
-                            onClick={async () => {
-                                try {
-                                    const tg = window.Telegram?.WebApp;
-                                    const initData = tg?.initData || '';
+                <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <div className="muted" style={{ marginRight: 8 }}>
+                        Если вам понравилось приложение, можете отблагодарить автора:
+                    </div>
+                    <button className="btn btn-primary" onClick={() => openDonate(150)}>150 ⭐</button>
+                    <button className="btn btn-primary" onClick={() => openDonate(300)}>300 ⭐</button>
+                    <button className="btn btn-primary" onClick={() => openDonate(500)}>500 ⭐</button>
 
-                                    const r = await fetch('/api/createSubscriptionLink?initData=' + encodeURIComponent(initData));
-                                    const j = await r.json();
-
-                                    if (!j.ok || !j.link) {
-                                        return alert(j.error || 'Не удалось создать подписку');
-                                    }
-
-                                    // 1) Пытаемся открыть нативно
-                                    let openedNatively = false;
-                                    if (tg?.openInvoice) {
-                                        try {
-                                            await tg.openInvoice(j.link);
-                                            openedNatively = true;
-                                        } catch (_) { /* упадём на фолбэк ниже */ }
-                                    }
-                                    // 2) Фолбэк — deep-link, надёжнее для Stars
-                                    if (!openedNatively) {
-                                        if (tg?.openTelegramLink) tg.openTelegramLink(j.link);
-                                        else window.open(j.link, '_blank');
-                                    }
-
-                                    // 3) Резервный авто-опрос статуса (если клиент не прислал invoiceClosed)
-                                    // через 5, 10 и 20 секунд подтянем entitlement
-                                    const poll = async () => {
-                                        const r2 = await fetch('/api/entitlement?initData=' + encodeURIComponent(initData));
-                                        const ent2 = await r2.json();
-                                        setEnt(ent2);
-                                        return !!ent2.sub_active;
-                                    };
-                                    setTimeout(poll, 5000);
-                                    setTimeout(poll, 10000);
-                                    setTimeout(poll, 20000);
-
-                                } catch (e) {
-                                    alert('Ошибка при создании подписки: ' + (e?.message || e));
-                                }
-                            }}
-                        >
-                            Оформить подписку ({priceStars} ⭐ / мес)
-                        </button>
-                    )}
+                    <div style={{ flex: 1 }} />
+                    <button className="btn" onClick={() => {
+                        // экспорт таблицы поправок в CSV (локально, без бота)
+                        const rows = samples.map(s => ({
+                            distance_m: Math.round(s.distance),
+                            correction_cm: Math.round((s.height || 0) * 100)
+                        }));
+                        const csv = toCSV(['distance_m', 'correction_cm'], rows);
+                        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url; a.download = 'corrections_50m.csv';
+                        document.body.appendChild(a); a.click(); a.remove();
+                        URL.revokeObjectURL(url);
+                    }}>
+                        Скачать таблицу поправок (50 м)
+                    </button>
                 </div>
 
                 <div className="card" style={{ marginTop: 16 }}>
-                    <p><b>Подписка:</b> 5 дней бесплатно, затем {priceStars} ⭐ / мес. Автопродление. Отмена — в истории платежей Telegram.</p>
-                    <p><b>Инструкция:</b> для расчёта баллистики любого патрона необходимо ввести 4 параметра: Масса (г), Диаметр (мм), Баллистический коэффициент (G1), Начальная скорость (м/с).</p>
+                    <p><b>Инструкция:</b> для расчёта баллистики любого патрона введите 4 параметра пули: Масса (г), Диаметр (мм), Баллистический коэффициент (G1), Начальная скорость (м/с).</p>
                     <p><b>Поддержка:</b> @proteano</p>
                 </div>
 
