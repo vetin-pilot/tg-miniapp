@@ -232,22 +232,7 @@ export default function App() {
                     <button className="btn btn-primary" onClick={() => openDonate(500)}>500 ⭐</button>
 
                     <div style={{ flex: 1 }} />
-                    <button className="btn" onClick={() => {
-                        // экспорт таблицы поправок в CSV (локально, без бота)
-                        const rows = samples.map(s => ({
-                            distance_m: Math.round(s.distance),
-                            correction_cm: Math.round((s.height || 0) * 100)
-                        }));
-                        const csv = toCSV(['distance_m', 'correction_cm'], rows);
-                        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url; a.download = 'corrections_50m.csv';
-                        document.body.appendChild(a); a.click(); a.remove();
-                        URL.revokeObjectURL(url);
-                    }}>
-                        Скачать таблицу поправок (50 м)
-                    </button>
+
                 </div>
 
                 <div className="card" style={{ marginTop: 16 }}>
