@@ -206,29 +206,27 @@ export default function App() {
         else alert('Файл отправлен в чат с ботом ✅');
     };
 
-    const exportHeights = () => {
+    const exportHeights = async () => {
         if (!canUse) return alert('Нужна подписка. Осталось пробного времени: ' + trialLeft);
         const rows = samples.map(s => ({
             distance_m: +s.distance.toFixed(2),
             height_m: +(s.height).toFixed(4),
-            height_cm: +(s.height * 100).toFixed(0)
+            height_cm: +(s.height * 100).toFixed(0),
         }));
         const csv = toCSV(['distance_m', 'height_m', 'height_cm'], rows);
-        dl('heights_50m.csv', csv);
-        sendCsvToChat('heights_50m.csv', csv);
+        await sendCsvToChat('heights_50m.csv', csv);   // ← только отправка в чат
     };
 
-    const exportTrajectory = () => {
+    const exportTrajectory = async () => {
         if (!canUse) return alert('Нужна подписка. Осталось пробного времени: ' + trialLeft);
         const rows = data.map(p => ({
             t_s: +p.t.toFixed(3),
             x_m: +p.x.toFixed(3),
             y_m: +p.y.toFixed(3),
-            y_cm: +(p.y * 100).toFixed(0)
+            y_cm: +(p.y * 100).toFixed(0),
         }));
         const csv = toCSV(['t_s', 'x_m', 'y_m', 'y_cm'], rows);
-        dl('trajectory.csv', csv);
-        sendCsvToChat('trajectory.csv', csv);
+        await sendCsvToChat('trajectory.csv', csv);    // ← только отправка в чат
     };
 
     const buySubscription = async () => {
@@ -257,6 +255,7 @@ export default function App() {
 
                 <div className="card" style={{ marginTop: 16 }}>
                     <p><b>Подписка:</b> 5 дней бесплатно, затем 300 ⭐ / мес. Автопродление. Отмена — в истории платежей Telegram.</p>
+                    <p><b>Инструкция:</b> для расчта баллистики любого патрона необходимо ввести всего 4 параметра вашей пули, которые указаны на упаковке или можно найти в интернете: Масса (г), Диаметр (мм), Коэфф. (G1), Начальная скорость (м/с). </p>
                     <p><b>Поддержка:</b> @proteano</p>
                 </div>
 
