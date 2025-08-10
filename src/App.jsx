@@ -97,10 +97,17 @@ export default function App() {
                 .then(setEnt)
                 .finally(() => setLoadingEnt(false));
 
+        // ------- Telegram init & события -------
+        let invoiceClosedHandler = null;
+
         if (tg) {
-            tg.ready(); tg.expand(); tg.onEvent('themeChanged', applyTheme);
-            tg.BackButton.show(); tg.BackButton.onClick(() => tg.close());
-            tg.MainButton.setText('Закрыть'); tg.MainButton.show();
+            tg.ready();
+            tg.expand();
+            tg.onEvent('themeChanged', applyTheme);
+            tg.BackButton.show();
+            tg.BackButton.onClick(() => tg.close());
+            tg.MainButton.setText('Закрыть');
+            tg.MainButton.show();
             tg.onEvent('mainButtonClicked', () => tg.close());
 
             const initData = tg.initData || '';
@@ -108,9 +115,30 @@ export default function App() {
             if (initData) fetchEnt('initData=' + encodeURIComponent(initData));
             else if (uid) fetchEnt('user_id=' + encodeURIComponent(uid));
             else fetchEnt('dev=1');
+
+            // ⬇️ ДОБАВКА: слушатель результата оплаты
+            invoiceClosedHandler = (e) => {
+                // e.status: 'paid' | 'cancelled' | 'failed'
+                if (e?.status === 'paid') {
+                    const initDataNow = tg.initData || '';
+                    fetch('/api/entitlement?initData=' + encodeURIComponent(initDataNow))
+                        .then(r => r.json())
+                        .then(setEnt)
+                        .catch(() => {});
+                }
+            };
+            tg.onEvent('invoiceClosed', invoiceClosedHandler);
+
         } else {
             fetchEnt('dev=1');
         }
+
+        // очистка слушателя при размонтировании
+        return () => {
+            if (tg && invoiceClosedHandler && typeof tg.offEvent === 'function') {
+                tg.offEvent('invoiceClosed', invoiceClosedHandler);
+            }
+        };
     }, []);
 
     const trialLeft = useMemo(() => {
@@ -213,16 +241,51 @@ export default function App() {
 
                 <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
                     {!ent.sub_active && (
-                        <button className="btn btn-primary" onClick={() => {
-                            const tg = window.Telegram?.WebApp; const initData = tg?.initData || '';
-                            fetch('/api/createSubscriptionLink?initData=' + encodeURIComponent(initData))
-                                .then(r => r.json())
-                                .then(j => {
-                                    if (!j.ok) return alert(j.error || 'Не удалось создать подписку');
-                                    if (tg?.openInvoice) tg.openInvoice(j.link); else window.open(j.link, '_blank');
-                                })
-                                .catch(() => alert('Не удалось создать подписку'));
-                        }}>
+                        <button
+                            className="btn btn-primary"
+                            onClick={async () => {
+                                try {
+                                    const tg = window.Telegram?.WebApp;
+                                    const initData = tg?.initData || '';
+
+                                    const r = await fetch('/api/createSubscriptionLink?initData=' + encodeURIComponent(initData));
+                                    const j = await r.json();
+
+                                    if (!j.ok || !j.link) {
+                                        return alert(j.error || 'Не удалось создать подписку');
+                                    }
+
+                                    // 1) Пытаемся открыть нативно
+                                    let openedNatively = false;
+                                    if (tg?.openInvoice) {
+                                        try {
+                                            await tg.openInvoice(j.link);
+                                            openedNatively = true;
+                                        } catch (_) { /* упадём на фолбэк ниже */ }
+                                    }
+                                    // 2) Фолбэк — deep-link, надёжнее для Stars
+                                    if (!openedNatively) {
+                                        if (tg?.openTelegramLink) tg.openTelegramLink(j.link);
+                                        else window.open(j.link, '_blank');
+                                    }
+
+                                    // 3) Резервный авто-опрос статуса (если клиент не прислал invoiceClosed)
+                                    // через 5, 10 и 20 секунд подтянем entitlement
+                                    const poll = async () => {
+                                        const r2 = await fetch('/api/entitlement?initData=' + encodeURIComponent(initData));
+                                        const ent2 = await r2.json();
+                                        setEnt(ent2);
+                                        return !!ent2.sub_active;
+                                    };
+                                    setTimeout(poll, 5000);
+                                    setTimeout(poll, 10000);
+                                    setTimeout(poll, 20000);
+
+                                } catch (e) {
+                                    alert('Ошибка при создании подписки: ' + (e?.message || e));
+                                }
+                            }}
+                        >
                             Оформить подписку ({priceStars} ⭐ / мес)
                         </button>
                     )}
