@@ -17,9 +17,9 @@ export default async function handler(req, res) {
             console.error('ensureWebhook (donate) error:', e?.message || e);
         }
 
-        // amount — количество звёзд (1/150/300/500)
+        // amount — количество звёзд (150/300/500)
         const qAmount = parseInt(req.query.amount || '0', 10);
-        const allowed = [1, 150, 300, 500];
+        const allowed = [150, 300, 500];
         const amount = allowed.includes(qAmount) ? qAmount : 150;
 
         const body = {

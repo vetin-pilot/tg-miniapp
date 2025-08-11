@@ -98,6 +98,8 @@ export default function App() {
     const [ent, setEnt] = useState({ trial_left_s: 0, sub_active: false });
     const [loadingEnt, setLoadingEnt] = useState(true);
     const [botUsername, setBotUsername] = useState('');
+    const [paymentLoading, setPaymentLoading] = useState(false);
+    const [paymentStatus, setPaymentStatus] = useState('');
 
     useEffect(() => {
         const tg = window.Telegram?.WebApp;
@@ -138,6 +140,26 @@ export default function App() {
             tg.MainButton.setText('Закрыть');
             tg.MainButton.show();
             tg.onEvent('mainButtonClicked', () => tg.close());
+
+            // Обработка событий платежей
+            tg.onEvent('invoiceClosed', (eventData) => {
+                console.log('Invoice closed:', eventData);
+                setPaymentLoading(false);
+
+                if (eventData.status === 'paid') {
+                    setPaymentStatus('Платеж успешно завершен!');
+                    setEnt(prev => ({ ...prev, sub_active: true }));
+                    // Обновляем данные с сервера
+                    const initData = tg.initData || '';
+                    if (initData) {
+                        fetchEnt('initData=' + encodeURIComponent(initData));
+                    }
+                } else if (eventData.status === 'cancelled') {
+                    setPaymentStatus('Платеж отменен');
+                } else if (eventData.status === 'failed') {
+                    setPaymentStatus('Платеж не удался');
+                }
+            });
 
             const initData = tg.initData || '';
             const uid = tg.initDataUnsafe?.user?.id;
@@ -211,6 +233,59 @@ export default function App() {
             setV0(String(preset.v0));
         }
     };
+
+    // Обработчик тестовой оплаты
+    const handleTestPayment = async () => {
+        const tg = window.Telegram?.WebApp;
+        if (!tg) {
+            alert('Telegram WebApp не доступен');
+            return;
+        }
+
+        setPaymentLoading(true);
+        setPaymentStatus('Инициализация платежа...');
+
+        try {
+            // Отправляем запрос на создание invoice
+            const response = await fetch('/api/create-invoice', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    amount: 1, // 1 звезда
+                    description: 'Тестовый платеж - 1 звезда',
+                    user_id: tg.initDataUnsafe?.user?.id
+                })
+            });
+
+            const invoiceData = await response.json();
+
+            if (invoiceData.invoice_link) {
+                // Открываем invoice через Telegram
+                tg.openInvoice(invoiceData.invoice_link, (status) => {
+                    console.log('Payment status:', status);
+                    setPaymentLoading(false);
+
+                    if (status === 'paid') {
+                        setPaymentStatus('Платеж успешно завершен! ⭐');
+                        setEnt(prev => ({ ...prev, sub_active: true }));
+                    } else if (status === 'cancelled') {
+                        setPaymentStatus('Платеж отменен');
+                    } else if (status === 'failed') {
+                        setPaymentStatus('Платеж не удался');
+                    }
+                });
+            } else {
+                throw new Error('Не удалось создать invoice');
+            }
+        } catch (error) {
+            console.error('Payment error:', error);
+            setPaymentLoading(false);
+            setPaymentStatus('Ошибка при инициализации платежа');
+        }
+    };
+
 
     // числа
     // 1 гран = 0.00006479891 кг. Это ключевое исправление.
@@ -370,6 +445,50 @@ export default function App() {
                                 ))}
                             </select>
                         </div>
+
+                        {/* Тестовая секция оплаты */}
+                        <div style={{ 
+                            background: 'var(--card)', 
+                            border: '1px solid var(--border)', 
+                            borderRadius: 8, 
+                            padding: 16, 
+                            marginBottom: 16 
+                        }}>
+                            <h3 style={{ margin: '0 0 12px 0', fontSize: 14, fontWeight: 600 }}>Тестовая оплата</h3>
+                            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                                <button 
+                                    onClick={handleTestPayment} 
+                                    disabled={paymentLoading}
+                                    style={{
+                                        backgroundColor: '#FFD700',
+                                        color: '#000',
+                                        border: 'none',
+                                        padding: '10px 16px',
+                                        borderRadius: '6px',
+                                        cursor: paymentLoading ? 'not-allowed' : 'pointer',
+                                        opacity: paymentLoading ? 0.6 : 1,
+                                        fontSize: '14px',
+                                        fontWeight: '600'
+                                    }}
+                                >
+                                    {paymentLoading ? '⭐ Обработка...' : '⭐ Тест (1 звезда)'}
+                                </button>
+                                {paymentStatus && (
+                                    <div style={{
+                                        padding: '6px 12px',
+                                        borderRadius: '4px',
+                                        backgroundColor: paymentStatus.includes('успешно') ? '#4CAF50' : 
+                                                       paymentStatus.includes('отменен') || paymentStatus.includes('не удался') ? '#f44336' : 
+                                                       '#2196F3',
+                                        color: 'white',
+                                        fontSize: '12px',
+                                        fontWeight: '500'
+                                    }}>
+                                        {paymentStatus}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                         <div>
                             <label htmlFor="preset-select" className="input-label" style={{ marginBottom: 4, display: 'block' }}>Патрон</label>
                             <select id="preset-select" value={selectedPreset} onChange={handlePresetChange} className="input-css" disabled={!selectedCaliber}>
@@ -386,7 +505,6 @@ export default function App() {
                     <div className="muted" style={{ marginRight: 8 }}>
                         Если вам понравилось приложение, можете отблагодарить автора:
                     </div>
-                    <button className="btn btn-primary" onClick={() => openDonate(1)}>1 ⭐ (тест)</button>
                     <button className="btn btn-primary" onClick={() => openDonate(150)}>150 ⭐</button>
                     <button className="btn btn-primary" onClick={() => openDonate(300)}>300 ⭐</button>
                     <button className="btn btn-primary" onClick={() => openDonate(500)}>500 ⭐</button>
