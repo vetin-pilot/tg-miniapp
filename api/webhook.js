@@ -31,12 +31,23 @@ export default async function handler(req, res) {
         // 1) ОБЯЗАТЕЛЬНО: ответить на pre_checkout_query — иначе «спиннер»
         if (update.pre_checkout_query) {
             const id = update.pre_checkout_query.id;
-            await fetch(`${API}/answerPreCheckoutQuery`, {
+            console.log('Processing pre_checkout_query:', id);
+
+            const response = await fetch(`${API}/answerPreCheckoutQuery`, {
                 method: 'POST',
                 headers: { 'content-type': 'application/json' },
                 body: JSON.stringify({ pre_checkout_query_id: id, ok: true })
             });
-            console.log('answered pre_checkout_query OK');
+
+            const result = await response.json();
+            console.log('answerPreCheckoutQuery result:', result);
+
+            if (!result.ok) {
+                console.error('Failed to answer pre_checkout_query:', result);
+            } else {
+                console.log('answered pre_checkout_query OK');
+            }
+
             return res.status(200).json({ ok: true });
         }
 
