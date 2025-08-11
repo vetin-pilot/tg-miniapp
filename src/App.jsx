@@ -234,60 +234,6 @@ export default function App() {
         }
     };
 
-    // Обработчик тестовой оплаты
-    const handleTestPayment = async () => {
-        const tg = window.Telegram?.WebApp;
-        if (!tg) {
-            alert('Telegram WebApp не доступен');
-            return;
-        }
-
-        setPaymentLoading(true);
-        setPaymentStatus('Создание invoice...');
-
-        try {
-            // Создаем тестовый invoice через наш API
-            const response = await fetch('/api/createTestInvoice');
-            const data = await response.json();
-
-            if (!data.ok || !data.link) {
-                throw new Error(data.error || 'Не удалось создать invoice');
-            }
-
-            setPaymentStatus('Открытие платежа...');
-
-            // Открываем invoice через Telegram WebApp
-            if (tg.openInvoice) {
-                tg.openInvoice(data.link, (status) => {
-                    console.log('Test payment status:', status);
-                    setPaymentLoading(false);
-
-                    if (status === 'paid') {
-                        setPaymentStatus('Тест успешен! ⭐');
-                    } else if (status === 'cancelled') {
-                        setPaymentStatus('Отменено');
-                    } else if (status === 'failed') {
-                        setPaymentStatus('Ошибка');
-                    } else {
-                        setPaymentStatus(`Статус: ${status}`);
-                    }
-                });
-            } else if (tg.openLink) {
-                // Fallback - открываем ссылку обычным способом
-                tg.openLink(data.link);
-                setPaymentLoading(false);
-                setPaymentStatus('Ссылка открыта');
-            } else {
-                throw new Error('Методы открытия платежа недоступны');
-            }
-
-        } catch (error) {
-            console.error('Test payment error:', error);
-            setPaymentLoading(false);
-            setPaymentStatus(`Ошибка: ${error.message}`);
-        }
-    };
-
 
     // числа
     // 1 гран = 0.00006479891 кг. Это ключевое исправление.
@@ -408,23 +354,78 @@ export default function App() {
         return out;
     }, [xMax]);
 
-    // --- Донаты Stars ---
-    const openDonate = async (amount) => {
-        try {
-            const tg = window.Telegram?.WebApp;
-            const initData = tg?.initData || '';
-            const r = await fetch(
-                '/api/createDonateLink?amount=' + encodeURIComponent(amount) +
-                '&initData=' + encodeURIComponent(initData)
-            );
-            const j = await r.json();
-            if (!j?.ok || !j.link) return alert(j?.error || 'Не удалось создать ссылку на донат');
-
-            if (tg?.openTelegramLink) tg.openTelegramLink(j.link);
-            else window.open(j.link, '_blank');
-        } catch (e) {
-            alert('Ошибка при создании доната: ' + (e?.message || e));
+    // --- Платежи Stars (универсальная функция) ---
+    const openInvoiceFlow = async (apiEndpoint, amount, title, description) => {
+        const tg = window.Telegram?.WebApp;
+        if (!tg) {
+            alert('Telegram WebApp не доступен');
+            return;
         }
+
+        setPaymentLoading(true);
+        setPaymentStatus('Создание invoice...');
+
+        try {
+            const initData = tg.initData || '';
+            const response = await fetch(
+                `${apiEndpoint}?amount=${encodeURIComponent(amount)}` +
+                `&initData=${encodeURIComponent(initData)}` +
+                `&title=${encodeURIComponent(title)}` + // Передаем title
+                `&description=${encodeURIComponent(description)}` // Передаем description
+            );
+            const data = await response.json();
+
+            if (!data.ok || !data.link) {
+                throw new Error(data.error || 'Не удалось создать ссылку для оплаты');
+            }
+
+            setPaymentStatus('Открытие платежа...');
+
+            if (tg.openInvoice) {
+                tg.openInvoice(data.link, (status) => {
+                    console.log('Payment status:', status);
+                    setPaymentLoading(false);
+
+                    if (status === 'paid') {
+                        setPaymentStatus(`${title} успешно! ⭐`);
+                        // Обновляем данные пользователя после успешной оплаты, т.к. статус подписки мог измениться
+                        const currentInitData = tg.initData || '';
+                        if (currentInitData) {
+                            fetchEnt('initData=' + encodeURIComponent(currentInitData));
+                        }
+                    } else if (status === 'cancelled') {
+                        setPaymentStatus('Платеж отменен');
+                    } else if (status === 'failed') {
+                        setPaymentStatus('Платеж не удался');
+                    } else {
+                        setPaymentStatus(`Статус: ${status}`);
+                    }
+                });
+            } else if (tg.openTelegramLink) {
+                tg.openTelegramLink(data.link);
+                setPaymentLoading(false);
+                setPaymentStatus('Ссылка открыта');
+            } else {
+                window.open(data.link, '_blank');
+                setPaymentLoading(false);
+                setPaymentStatus('Ссылка открыта');
+            }
+
+        } catch (e) {
+            console.error('Payment error:', e);
+            setPaymentLoading(false);
+            setPaymentStatus(`Ошибка: ${e.message || e}`);
+        }
+    };
+
+    // Обновленная функция для донатов
+    const openDonate = (amount) => {
+        openInvoiceFlow('/api/createDonateLink', amount, `Донат ${amount} ⭐`, 'Спасибо за поддержку!');
+    };
+
+    // Обновленная функция для тестовой оплаты
+    const handleTestPayment = () => {
+        openInvoiceFlow('/api/createTestInvoice', 1, 'Тест 1 ⭐', 'Тестовая оплата');
     };
 
     return (
@@ -466,7 +467,7 @@ export default function App() {
                         {/* Добавляем тестовую кнопку перед основными */}
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
                             <button 
-                                onClick={handleTestPayment} 
+                                onClick={handleTestPayment} // Теперь handleTestPayment вызывает openInvoiceFlow
                                 disabled={paymentLoading}
                                 style={{
                                     background: 'linear-gradient(135deg, #FFD700, #FFA500)',

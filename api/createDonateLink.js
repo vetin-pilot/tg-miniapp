@@ -22,13 +22,16 @@ export default async function handler(req, res) {
         const allowed = [150, 300, 500];
         const amount = allowed.includes(qAmount) ? qAmount : 150;
 
+        const reqTitle = req.query.title || 'Баллистика PRO — донат';
+        const reqDescription = req.query.description || 'Спасибо за поддержку разработки! Это разовый донат в звёздах.';
+
         const body = {
-            title: 'Баллистика PRO — донат',
-            description: 'Спасибо за поддержку разработки! Это разовый донат в звёздах.',
+            title: reqTitle,
+            description: reqDescription,
             payload: `donate_${Date.now()}_${amount}`,
             currency: 'XTR', // Stars
             prices: [
-                { label: `Донат ${amount} ⭐`, amount }
+                { label: `${reqTitle}`, amount }
             ],
         };
 
