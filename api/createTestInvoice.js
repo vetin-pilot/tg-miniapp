@@ -67,9 +67,9 @@ export default async function handler(req, res) {
         }
 
         const body = {
-            title: 'Test Payment - 1 Star',
-            description: 'Test payment to verify the payment system functionality.',
-            payload: `test_payment_${Date.now()}`,
+            title: 'Test Payment',
+            description: 'Test payment for system verification',
+            payload: `test_payment_1`,
             currency: 'XTR', // Stars
             prices: [
                 { label: 'Test 1 Star', amount: 1 }
