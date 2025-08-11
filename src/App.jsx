@@ -191,6 +191,7 @@ export default function App() {
 
     const [selectedCaliber, setSelectedCaliber] = useState('');
     const [selectedPreset, setSelectedPreset] = useState('');
+    const [massUnit, setMassUnit] = useState('gr'); // 'gr' for grains, 'g' for grams
 
     const handleCaliberChange = (e) => {
         const caliber = e.target.value;
@@ -209,6 +210,7 @@ export default function App() {
             if (firstPreset) {
                 setSelectedPreset(firstPreset.name);
                 setMassGr(String(firstPreset.massGr));
+                setMassUnit('gr'); // Пресеты в гранах
                 setDiameterMm(String(firstPreset.diameterMm));
                 setG1(String(firstPreset.G1));
                 setV0(String(firstPreset.v0));
@@ -228,6 +230,7 @@ export default function App() {
         const preset = caliberPresets.find(p => p.name === presetName);
         if (preset) {
             setMassGr(String(preset.massGr));
+            setMassUnit('gr'); // Пресеты в гранах
             setDiameterMm(String(preset.diameterMm));
             setG1(String(preset.G1));
             setV0(String(preset.v0));
@@ -236,8 +239,10 @@ export default function App() {
 
 
     // числа
-    // 1 гран = 0.00006479891 кг. Это ключевое исправление.
-    const massKg = n(massGr, 0) * 0.00006479891;
+    // 1 гран = 0.00006479891 кг, 1 грамм = 0.001 кг.
+    const massKg = massUnit === 'g'
+        ? n(massGr, 0) * 0.001 // граммы в кг
+        : n(massGr, 0) * 0.00006479891; // граны в кг
     const diameter = n(diameterMm, 0);
     const g1 = n(G1, 0.001);
     const v0n = n(v0, 0);
@@ -560,8 +565,14 @@ export default function App() {
 
                 <div className="card" style={{ marginTop: 16 }}>
                     <div className="grid">
-                        <label>Масса, гран (gr)
-                            <input type="number" step="0.1" value={massGr} onChange={e => setMassGr(e.target.value)} />
+                        <label>Масса ({massUnit})
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                <input type="number" step="0.1" value={massGr} onChange={e => setMassGr(e.target.value)} style={{ flex: 1 }} />
+                                <select value={massUnit} onChange={e => setMassUnit(e.target.value)} className="input-css" style={{ width: 90 }}>
+                                    <option value="gr">гран</option>
+                                    <option value="g">грамм</option>
+                                </select>
+                            </div>
                         </label>
                         <label>Диаметр (мм)
                             <input type="number" step="0.01" value={diameterMm} onChange={e => setDiameterMm(e.target.value)} />
