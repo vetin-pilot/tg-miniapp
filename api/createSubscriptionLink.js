@@ -9,9 +9,24 @@ export default async function handler(req, res) {
             return res.status(200).json({ ok: false, error: 'BOT_TOKEN is missing' });
         }
 
+        // Автопостановка вебхука для текущего домена
+        try {
+            const { ensureWebhook } = await import('./_tg.js');
+            await ensureWebhook(req);
+        } catch (e) {
+            console.error('ensureWebhook (subscription) error:', e?.message || e);
+        }
+
         // цена в звёздах: берём из env (PRO_PRICE_STARS приоритетнее)
+        // поддерживаем SUBSCRIPTION_PAICE (опечатка), чтобы не зависеть от корректного имени
         const priceStars =
-            parseInt(process.env.PRO_PRICE_STARS || process.env.SUBSCRIPTION_PRICE || '150', 10) || 150;
+            parseInt(
+                process.env.PRO_PRICE_STARS ||
+                process.env.SUBSCRIPTION_PRICE ||
+                process.env.SUBSCRIPTION_PAICE || // опечатка из окружения
+                '150',
+                10
+            ) || 150;
 
         const body = {
             title: 'Баллистика PRO — подписка',

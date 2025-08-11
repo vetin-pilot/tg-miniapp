@@ -1,8 +1,19 @@
 // /api/config.js
-export default function handler(req, res) {
+export default async function handler(req, res) {
     try {
+        // Автопостановка вебхука при первом заходе в приложение
+        try {
+            const { ensureWebhook } = await import('./_tg.js');
+            await ensureWebhook(req);
+        } catch (e) {
+            console.error('ensureWebhook (config) error:', e?.message || e);
+        }
+
         const price = parseInt(
-            process.env.PRO_PRICE_STARS || process.env.SUBSCRIPTION_PRICE || '150',
+            process.env.PRO_PRICE_STARS ||
+            process.env.SUBSCRIPTION_PRICE ||
+            process.env.SUBSCRIPTION_PAICE || // поддержим опечатку из окружения
+            '150',
             10
         );
         const period = parseInt(

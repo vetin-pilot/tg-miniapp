@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { presets } from './presets.js';
 
 const R = 287.058, g = 9.80665;
 const airDensityFromTP = (tempC, pressureHpa) => (pressureHpa * 100) / (R * (tempC + 273.15));
@@ -12,20 +13,29 @@ const n = (s, fallback = 0) => {
 };
 
 function simulate({ v0, angleDeg, h0, massKg, G1, diameterMm, rho, xMax, yMin = -30, dt = 0.002 }) {
-    const diameterM = Math.max(0.001, diameterMm / 1000);
-    const A = Math.PI * (diameterM / 2) ** 2;
-    const k = Math.max(1e-6, (Math.max(0.001, G1) * A) / Math.max(0.001, massKg));
+    // ФИЗИЧЕСКИ КОРРЕКТНАЯ МОДЕЛЬ
+    // 1. Переводим имперский БК (G1, в lb/in^2) в метрический (C, в kg/m^2)
+    //    1 lb/in^2 = 703.07 kg/m^2
+    const C_metric_bc = Math.max(0.001, G1) * 703.07;
 
     let x = 0, y = h0, th = angleDeg * Math.PI / 180;
     let vx = v0 * Math.cos(th), vy = v0 * Math.sin(th), t = 0, maxH = y;
     const data = [];
     while (y >= yMin && x <= xMax && t < 180) {
         const v = Math.hypot(vx, vy) || 1e-12;
-        const ax = -0.5 * rho * k * v * vx;
-        const ay = -g - 0.5 * rho * k * v * vy;
+
+        // 2. Расчёт силы сопротивления воздуха.
+        //    Ускорение замедления a = (rho * v^2) / (2 * C).
+        //    Оно обратно пропорционально метрическому БК, что физически верно.
+        const drag_factor = -rho * v / (2 * C_metric_bc);
+
+        const ax = drag_factor * vx;
+        const ay = -g + drag_factor * vy;
+
         vx += ax * dt; vy += ay * dt; x += vx * dt; y += vy * dt; t += dt;
         if (y > maxH) maxH = y;
-        if (t % 0.01 < dt) data.push({ t, x, y });
+        // сохраняем скорость для расчёта энергии
+        if (t % 0.01 < dt) data.push({ t, x, y, v });
     }
     return { data, range: x, maxH, flightTime: t };
 }
@@ -39,6 +49,18 @@ const heightAt = (data, X) => {
     if (b.x === a.x) return a.y;
     const r = (X - a.x) / (b.x - a.x);
     return a.y + r * (b.y - a.y);
+};
+
+// универсальная интерполяция по любому ключу (t, v и т.д.)
+const valueAt = (data, X, key) => {
+    if (!data.length) return NaN;
+    let i = 0;
+    while (i + 1 < data.length && data[i + 1].x < X) i++;
+    const a = data[i], b = data[i + 1] || a;
+    if (!a || !b) return NaN;
+    if (b.x === a.x) return a[key];
+    const r = (X - a.x) / (b.x - a.x);
+    return a[key] + r * (b[key] - a[key]);
 };
 
 const sampleHeights = (data, ranges) => {
@@ -59,6 +81,17 @@ const toCSV = (h, rows) =>
         const s = String(r[k] ?? '');
         return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
     }).join(',')).join('\n') + '\n';
+
+// Направление ветра «на X часов» -> градусы (12: лобовой, 3: справа поперечный, 6: в спину, 9: слева)
+const clockToAngle = (hours) => {
+    const map = { 12: 0, 1: 30, 2: 60, 3: 90, 4: 120, 5: 150, 6: 180, 7: 210, 8: 240, 9: 270, 10: 300, 11: 330 };
+    const h = parseInt(String(hours).replace(/\D/g, ''), 10);
+    return map[h] ?? 90;
+};
+
+// Упрощённый коэффициент «аэродинамического скачка» (вертикальная компонента от поперечного ветра)
+// Δy ≈ AJ_K * Vcross * t. Подобрано консервативно так, чтобы давать ощутимую поправку, но не завышать.
+const AJ_K = 0.01; // м вертикали на (м/с * сек)
 
 export default function App() {
     // оставил стейт доступа, но он больше нигде не ограничивает функционал
@@ -117,26 +150,86 @@ export default function App() {
     }, []);
 
     // --- контролы (строки, можно стирать нули) ---
-    const [massGr, setMassGr] = useState('11.7');
+    const [massGr, setMassGr] = useState('180'); // масса в гранах по умолчанию
     const [diameterMm, setDiameterMm] = useState('7.62');
     const [G1, setG1] = useState('0.366'); // баллистический коэффициент (G1)
     const [v0, setV0] = useState('823');
     const [zeroRangeStr, setZeroRangeStr] = useState('100'); // расстояние пристрелки
-    const [h0, setH0] = useState('0'); // рост прицела
+    const [h0, setH0] = useState('5'); // рост прицела, см
     const [tempC, setTempC] = useState('15');
     const [pressureHpa, setPressureHpa] = useState('1013.25');
     const [xMax, setXMax] = useState(1500); // дефолт 1500 м
 
+    // ветер, PBR и энергия
+    const [windSpeed, setWindSpeed] = useState('0');   // скорость ветра
+    const [windUnit, setWindUnit] = useState('ms');    // ms | mph
+    const [windAngle, setWindAngle] = useState('90');  // 90° = поперечный справа
+    const [pbrSize, setPbrSize] = useState('20');      // диаметр убойной зоны, см
+    const [minEnergyJ, setMinEnergyJ] = useState('1500'); // минимальная энергия, Дж
+
+    const [selectedCaliber, setSelectedCaliber] = useState('');
+    const [selectedPreset, setSelectedPreset] = useState('');
+
+    const handleCaliberChange = (e) => {
+        const caliber = e.target.value;
+        setSelectedCaliber(caliber);
+
+        if (!caliber) {
+            setSelectedPreset('');
+            // Вернуть дефолтные значения, если калибр не выбран
+            setMassGr('11.7');
+            setDiameterMm('7.62');
+            setG1('0.366');
+            setV0('823');
+        } else {
+            // выбрать первый патрон по-умолчанию
+            const firstPreset = presets[caliber]?.[0];
+            if (firstPreset) {
+                setSelectedPreset(firstPreset.name);
+                setMassGr(String(firstPreset.massGr));
+                setDiameterMm(String(firstPreset.diameterMm));
+                setG1(String(firstPreset.G1));
+                setV0(String(firstPreset.v0));
+            } else {
+                setSelectedPreset('');
+            }
+        }
+    };
+
+    const handlePresetChange = (e) => {
+        const presetName = e.target.value;
+        setSelectedPreset(presetName);
+
+        const caliberPresets = presets[selectedCaliber];
+        if (!caliberPresets || !presetName) return;
+
+        const preset = caliberPresets.find(p => p.name === presetName);
+        if (preset) {
+            setMassGr(String(preset.massGr));
+            setDiameterMm(String(preset.diameterMm));
+            setG1(String(preset.G1));
+            setV0(String(preset.v0));
+        }
+    };
+
     // числа
-    const massKg = n(massGr, 0) / 1000;
+    // 1 гран = 0.00006479891 кг. Это ключевое исправление.
+    const massKg = n(massGr, 0) * 0.00006479891;
     const diameter = n(diameterMm, 0);
     const g1 = n(G1, 0.001);
     const v0n = n(v0, 0);
-    const h0n = n(h0, 0);
+    const h0n = n(h0, 0) / 100; // см -> м
     const tempN = n(tempC, 15);
     const pressN = n(pressureHpa, 1013.25);
     const zeroRange = Math.max(1, n(zeroRangeStr, 50));
     const rho = useMemo(() => airDensityFromTP(tempN, pressN), [tempN, pressN]);
+
+    // Поперечная составляющая ветра (м/с) — влияет на снос и вертикаль (аэродинамический скачок)
+    const crossMs = useMemo(() => {
+        const windMs = windUnit === 'mph' ? n(windSpeed, 0) * 0.44704 : n(windSpeed, 0);
+        const angleRad = n(windAngle, 90) * Math.PI / 180;
+        return windMs * Math.sin(angleRad);
+    }, [windSpeed, windUnit, windAngle]);
 
     // подбор угла под «расстояние пристрелки»
     const solveAngleForZero = (zeroR) => {
@@ -175,8 +268,11 @@ export default function App() {
         [v0n, angleDeg, h0n, massKg, g1, diameter, rho, xMax]
     );
 
-    // поправка в см для графика
-    const dataCm = useMemo(() => data.map(d => ({ ...d, y_cm: Math.round(d.y * 100) })), [data]);
+    // поправка в см для графика (с учётом вертикальной компоненты от поперечного ветра)
+    const dataCm = useMemo(
+        () => data.map(d => ({ ...d, y_cm: Math.round((d.y + AJ_K * crossMs * (d.t ?? 0)) * 100) })),
+        [data, crossMs]
+    );
 
     // сетка 50 м
     const ranges = useMemo(
@@ -185,14 +281,53 @@ export default function App() {
     );
     const samples = useMemo(() => sampleHeights(data, ranges), [data, ranges]);
 
+    // подробные значения для таблицы: снос ветром и энергия
+    const samplesDetailed = useMemo(() => {
+        const windMs = (windUnit === 'mph' ? n(windSpeed, 0) * 0.44704 : n(windSpeed, 0));
+        const angleRad = n(windAngle, 90) * Math.PI / 180;
+        const cross = windMs * Math.sin(angleRad); // поперечная составляющая
+        return ranges.map((R) => {
+            const y0 = heightAt(data, R);
+            const t = valueAt(data, R, 't');
+            const v = valueAt(data, R, 'v');
+            const tSafe = Number.isFinite(t) ? t : 0;
+            const y = y0 + AJ_K * cross * tSafe; // вертикаль с учётом ветра
+            const drift_cm = (cross * tSafe) * 100;
+            const energy = 0.5 * massKg * (Number.isFinite(v) ? v : 0) ** 2;
+            return { distance: R, height: y, drift_cm, energy };
+        });
+    }, [data, ranges, windSpeed, windUnit, windAngle, massKg]);
+
+    // дистанция, где энергия падает ниже порога
+    const energyCutX = useMemo(() => {
+        const thr = n(minEnergyJ, 0);
+        if (thr <= 0) return null;
+        for (const s of samplesDetailed) {
+            if (!Number.isFinite(s.energy)) continue;
+            if (s.energy < thr) return s.distance;
+        }
+        return null;
+    }, [samplesDetailed, minEnergyJ]);
+
+    // дальность прямого выстрела (PBR): траектория в пределах ±(pbrSize/2) см
+    const pbrFar = useMemo(() => {
+        const half = n(pbrSize, 20) / 2;
+        for (const d of dataCm) {
+            if (d.y_cm < -half) return d.x;
+        }
+        return xMax;
+    }, [dataCm, pbrSize, xMax]);
+
+    // удалено дублирующее вычисление pbrFar (см. единственное объявление ниже)
+
     const E0J = 0.5 * massKg * v0n * v0n;
     const E0FPE = E0J / 1.35582;
 
-    // тики X каждые 50 м
+    // тики X каждые 50 м (начинаем с 50)
     const xTicks = useMemo(() => {
         const max = Math.max(100, xMax);
         const out = [];
-        for (let x = 0; x <= max; x += 50) out.push(x);
+        for (let x = 50; x <= max; x += 50) out.push(x);
         return out;
     }, [xMax]);
 
@@ -223,6 +358,30 @@ export default function App() {
                     <span className="pill">Полный доступ • донат по желанию</span>
                 </h1>
 
+                <div className="card" style={{ marginTop: 24, padding: '16px 16px 12px' }}>
+                    <h2 style={{ marginTop: 0, marginBottom: 12, fontSize: 16, fontWeight: 600, opacity: 0.9 }}>Пресеты патронов</h2>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'end' }}>
+                        <div>
+                            <label htmlFor="caliber-select" className="input-label" style={{ marginBottom: 4, display: 'block' }}>Калибр</label>
+                            <select id="caliber-select" value={selectedCaliber} onChange={handleCaliberChange} className="input-css">
+                                <option value="">-- Ручной ввод --</option>
+                                {Object.keys(presets).map(caliber => (
+                                    <option key={caliber} value={caliber}>{caliber}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label htmlFor="preset-select" className="input-label" style={{ marginBottom: 4, display: 'block' }}>Патрон</label>
+                            <select id="preset-select" value={selectedPreset} onChange={handlePresetChange} className="input-css" disabled={!selectedCaliber}>
+                                <option value="">-- Выберите --</option>
+                                {selectedCaliber && presets[selectedCaliber]?.map(p => (
+                                    <option key={p.name} value={p.name}>{p.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
                 <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                     <div className="muted" style={{ marginRight: 8 }}>
                         Если вам понравилось приложение, можете отблагодарить автора:
@@ -236,13 +395,57 @@ export default function App() {
                 </div>
 
                 <div className="card" style={{ marginTop: 16 }}>
-                    <p><b>Инструкция:</b> для расчёта баллистики любого патрона введите 4 параметра пули: Масса (г), Диаметр (мм), Баллистический коэффициент (G1), Начальная скорость (м/с).</p>
+                    <p><b>Инструкция:</b> для расчёта баллистики любого патрона введите 4 параметра пули: Масса (gr, граны), Диаметр (мм), Баллистический коэффициент (G1), Начальная скорость (м/с).</p>
                     <p><b>Поддержка:</b> @proteano</p>
                 </div>
 
                 <div className="card" style={{ marginTop: 16 }}>
                     <div className="grid">
-                        <label>Масса (г)
+                        <label>Скорость ветра
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                <input type="number" step="0.1" value={windSpeed} onChange={e => setWindSpeed(e.target.value)} style={{ flex: 1 }} />
+                                <select value={windUnit} onChange={e => setWindUnit(e.target.value)} className="input-css" style={{ width: 90 }}>
+                                    <option value="ms">м/с</option>
+                                    <option value="mph">mph</option>
+                                </select>
+                            </div>
+                        </label>
+                        <label>Направление ветра (по циферблату)
+                            <select
+                                className="input-css"
+                                onChange={e => setWindAngle(clockToAngle(e.target.value))}
+                                defaultValue="3"
+                            >
+                                <option value="12">12 часов (лобовой)</option>
+                                <option value="1">1 час</option>
+                                <option value="2">2 часа</option>
+                                <option value="3">3 часа (справа)</option>
+                                <option value="4">4 часа</option>
+                                <option value="5">5 часов</option>
+                                <option value="6">6 часов (в спину)</option>
+                                <option value="7">7 часов</option>
+                                <option value="8">8 часов</option>
+                                <option value="9">9 часов (слева)</option>
+                                <option value="10">10 часов</option>
+                                <option value="11">11 часов</option>
+                            </select>
+                            <div className="muted" style={{ marginTop: 4 }}>Текущий угол: {Math.round(n(windAngle, 90))}°</div>
+                        </label>
+                        <label>Размер убойной зоны (PBR), см
+                            <input type="number" step="1" value={pbrSize} onChange={e => setPbrSize(e.target.value)} />
+                        </label>
+                        <label>Мин. энергия для дичи, Дж
+                            <input type="number" step="10" value={minEnergyJ} onChange={e => setMinEnergyJ(e.target.value)} />
+                        </label>
+                    </div>
+                    <div className="muted" style={{ marginTop: 8 }}>
+                        Дальность прямого выстрела (для цели {pbrSize} см): до {Math.round(pbrFar || 0)} м.
+                    </div>
+                </div>
+
+                <div className="card" style={{ marginTop: 16 }}>
+                    <div className="grid">
+                        <label>Масса, гран (gr)
                             <input type="number" step="0.1" value={massGr} onChange={e => setMassGr(e.target.value)} />
                         </label>
                         <label>Диаметр (мм)
@@ -300,32 +503,44 @@ export default function App() {
                                 contentStyle={{ background: 'var(--card)', color: 'var(--text)', borderColor: 'var(--border)' }}
                             />
                             <ReferenceLine y={0} strokeDasharray="3 3" />
+                            {energyCutX !== null && (
+                                <ReferenceLine
+                                    x={energyCutX}
+                                    stroke="red"
+                                    strokeDasharray="4 4"
+                                    label={{ value: `${minEnergyJ} Дж`, fill: 'red', position: 'insideTop' }}
+                                />
+                            )}
                             <Line type="monotone" dataKey="y_cm" dot={false} strokeWidth={2} />
-                        </LineChart>
-                    </ResponsiveContainer>
+                            </LineChart>
+                        </ResponsiveContainer>
                 </div>
 
                 {/* Таблица поправок с шагом 50 м (всегда показана) */}
                 <div className="card" style={{ marginTop: 16 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                         <h3 style={{ margin: 0 }}>Таблица поправок (шаг 50 м)</h3>
-                        <div className="muted" style={{ fontSize: 12 }}>все значения в сантиметрах</div>
+                        <div className="muted" style={{ fontSize: 12 }}>вертикаль/снос в см, энергия в Дж</div>
                     </div>
                     <div style={{ overflow: 'auto', marginTop: 8 }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 360 }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 480 }}>
                             <thead>
                             <tr>
                                 <th style={{ textAlign: 'left', padding: '8px 6px', borderBottom: '1px solid var(--border)' }}>Дистанция, м</th>
-                                <th style={{ textAlign: 'left', padding: '8px 6px', borderBottom: '1px solid var(--border)' }}>Поправка, см</th>
+                                <th style={{ textAlign: 'left', padding: '8px 6px', borderBottom: '1px solid var(--border)' }}>Снижение, см</th>
+                                <th style={{ textAlign: 'left', padding: '8px 6px', borderBottom: '1px solid var(--border)' }}>Снос ветром, см</th>
+                                <th style={{ textAlign: 'left', padding: '8px 6px', borderBottom: '1px solid var(--border)' }}>Энергия, Дж</th>
                             </tr>
                             </thead>
                             <tbody>
-                            {samples.map((s) => {
-                                const cm = Math.round((s.height || 0) * 100);
+                            {samplesDetailed.map((row) => {
+                                const cm = Math.round((row.height || 0) * 100);
                                 return (
-                                    <tr key={s.distance}>
-                                        <td style={{ padding: '6px' }}>{Math.round(s.distance)}</td>
+                                    <tr key={row.distance} style={{ color: row.energy < n(minEnergyJ, 0) ? 'red' : 'inherit' }}>
+                                        <td style={{ padding: '6px' }}>{Math.round(row.distance)}</td>
                                         <td style={{ padding: '6px' }}>{cm}</td>
+                                        <td style={{ padding: '6px' }}>{row.drift_cm.toFixed(1)}</td>
+                                        <td style={{ padding: '6px' }}>{Math.round(row.energy)}</td>
                                     </tr>
                                 );
                             })}

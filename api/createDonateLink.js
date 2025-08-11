@@ -9,6 +9,14 @@ export default async function handler(req, res) {
             return res.status(200).json({ ok: false, error: 'BOT_TOKEN is missing' });
         }
 
+        // Автопостановка вебхука для текущего домена
+        try {
+            const { ensureWebhook } = await import('./_tg.js');
+            await ensureWebhook(req);
+        } catch (e) {
+            console.error('ensureWebhook (donate) error:', e?.message || e);
+        }
+
         // amount — количество звёзд (150/300/500)
         const qAmount = parseInt(req.query.amount || '0', 10);
         const allowed = [150, 300, 500];
