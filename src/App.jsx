@@ -235,7 +235,7 @@ export default function App() {
     };
 
     // Обработчик тестовой оплаты
-    const handleTestPayment = () => {
+    const handleTestPayment = async () => {
         const tg = window.Telegram?.WebApp;
         if (!tg) {
             alert('Telegram WebApp не доступен');
@@ -243,43 +243,48 @@ export default function App() {
         }
 
         setPaymentLoading(true);
-        setPaymentStatus('Инициализация платежа...');
+        setPaymentStatus('Создание invoice...');
 
         try {
-            // Для тестирования используем простую схему с показом сообщения
-            // В реальном приложении здесь должен быть вызов бота с командой для создания invoice
+            // Создаем тестовый invoice через наш API
+            const response = await fetch('/api/createTestInvoice');
+            const data = await response.json();
 
-            // Имитируем процесс оплаты для тестирования
-            setTimeout(() => {
-                // Показываем пользователю инструкции
-                const message = `Для тестовой оплаты 1 звезды:\n\n1. Напишите боту @${botUsername || 'your_bot'}\n2. Отправьте команду /pay_1_star\n3. Следуйте инструкциям бота`;
+            if (!data.ok || !data.link) {
+                throw new Error(data.error || 'Не удалось создать invoice');
+            }
 
-                if (tg.showAlert) {
-                    tg.showAlert(message, () => {
-                        setPaymentLoading(false);
-                        setPaymentStatus('Инструкции показаны');
-                    });
-                } else {
-                    alert(message);
+            setPaymentStatus('Открытие платежа...');
+
+            // Открываем invoice через Telegram WebApp
+            if (tg.openInvoice) {
+                tg.openInvoice(data.link, (status) => {
+                    console.log('Test payment status:', status);
                     setPaymentLoading(false);
-                    setPaymentStatus('Инструкции показаны');
-                }
-            }, 1000);
 
-            // Альтернативно - попробуем открыть чат с ботом
-            if (botUsername) {
-                const botUrl = `https://t.me/${botUsername}?start=pay_test_1_star`;
-                if (tg.openTelegramLink) {
-                    tg.openTelegramLink(botUrl);
-                } else if (tg.openLink) {
-                    tg.openLink(botUrl);
-                }
+                    if (status === 'paid') {
+                        setPaymentStatus('Тест успешен! ⭐');
+                    } else if (status === 'cancelled') {
+                        setPaymentStatus('Отменено');
+                    } else if (status === 'failed') {
+                        setPaymentStatus('Ошибка');
+                    } else {
+                        setPaymentStatus(`Статус: ${status}`);
+                    }
+                });
+            } else if (tg.openLink) {
+                // Fallback - открываем ссылку обычным способом
+                tg.openLink(data.link);
+                setPaymentLoading(false);
+                setPaymentStatus('Ссылка открыта');
+            } else {
+                throw new Error('Методы открытия платежа недоступны');
             }
 
         } catch (error) {
-            console.error('Payment error:', error);
+            console.error('Test payment error:', error);
             setPaymentLoading(false);
-            setPaymentStatus('Ошибка при инициализации платежа');
+            setPaymentStatus(`Ошибка: ${error.message}`);
         }
     };
 
@@ -442,50 +447,6 @@ export default function App() {
                                 ))}
                             </select>
                         </div>
-
-                        {/* Тестовая секция оплаты */}
-                        <div style={{ 
-                            background: 'var(--card)', 
-                            border: '1px solid var(--border)', 
-                            borderRadius: 8, 
-                            padding: 16, 
-                            marginBottom: 16 
-                        }}>
-                            <h3 style={{ margin: '0 0 12px 0', fontSize: 14, fontWeight: 600 }}>Тестовая оплата</h3>
-                            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                                <button 
-                                    onClick={handleTestPayment} 
-                                    disabled={paymentLoading}
-                                    style={{
-                                        backgroundColor: '#FFD700',
-                                        color: '#000',
-                                        border: 'none',
-                                        padding: '10px 16px',
-                                        borderRadius: '6px',
-                                        cursor: paymentLoading ? 'not-allowed' : 'pointer',
-                                        opacity: paymentLoading ? 0.6 : 1,
-                                        fontSize: '14px',
-                                        fontWeight: '600'
-                                    }}
-                                >
-                                    {paymentLoading ? '⭐ Обработка...' : '⭐ Тест (1 звезда)'}
-                                </button>
-                                {paymentStatus && (
-                                    <div style={{
-                                        padding: '6px 12px',
-                                        borderRadius: '4px',
-                                        backgroundColor: paymentStatus.includes('успешно') ? '#4CAF50' : 
-                                                       paymentStatus.includes('отменен') || paymentStatus.includes('не удался') ? '#f44336' : 
-                                                       '#2196F3',
-                                        color: 'white',
-                                        fontSize: '12px',
-                                        fontWeight: '500'
-                                    }}>
-                                        {paymentStatus}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
                         <div>
                             <label htmlFor="preset-select" className="input-label" style={{ marginBottom: 4, display: 'block' }}>Патрон</label>
                             <select id="preset-select" value={selectedPreset} onChange={handlePresetChange} className="input-css" disabled={!selectedCaliber}>
@@ -501,6 +462,43 @@ export default function App() {
                 <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                     <div className="muted" style={{ marginRight: 8 }}>
                         Если вам понравилось приложение, можете отблагодарить автора:
+
+                        {/* Добавляем тестовую кнопку перед основными */}
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
+                            <button 
+                                onClick={handleTestPayment} 
+                                disabled={paymentLoading}
+                                style={{
+                                    background: 'linear-gradient(135deg, #FFD700, #FFA500)',
+                                    color: '#000',
+                                    border: 'none',
+                                    padding: '8px 12px',
+                                    borderRadius: '6px',
+                                    cursor: paymentLoading ? 'not-allowed' : 'pointer',
+                                    opacity: paymentLoading ? 0.6 : 1,
+                                    fontSize: '12px',
+                                    fontWeight: '600',
+                                    minWidth: '80px',
+                                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                                }}
+                            >
+                                {paymentLoading ? '⏳' : '🧪 1⭐'}
+                            </button>
+                            {paymentStatus && (
+                                <span style={{
+                                    padding: '4px 8px',
+                                    borderRadius: '4px',
+                                    backgroundColor: paymentStatus.includes('успешно') ? '#4CAF50' : 
+                                                   paymentStatus.includes('отменен') || paymentStatus.includes('не удался') ? '#f44336' : 
+                                                   '#2196F3',
+                                    color: 'white',
+                                    fontSize: '10px',
+                                    fontWeight: '500'
+                                }}>
+                                    {paymentStatus}
+                                </span>
+                            )}
+                        </div>
                     </div>
                     <button className="btn btn-primary" onClick={() => openDonate(150)}>150 ⭐</button>
                     <button className="btn btn-primary" onClick={() => openDonate(300)}>300 ⭐</button>
