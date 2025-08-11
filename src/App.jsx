@@ -386,6 +386,7 @@ export default function App() {
                     <div className="muted" style={{ marginRight: 8 }}>
                         Если вам понравилось приложение, можете отблагодарить автора:
                     </div>
+                    <button className="btn btn-primary" onClick={() => openDonate(1)}>1 ⭐ (тест)</button>
                     <button className="btn btn-primary" onClick={() => openDonate(150)}>150 ⭐</button>
                     <button className="btn btn-primary" onClick={() => openDonate(300)}>300 ⭐</button>
                     <button className="btn btn-primary" onClick={() => openDonate(500)}>500 ⭐</button>
