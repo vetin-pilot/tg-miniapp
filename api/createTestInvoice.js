@@ -67,12 +67,12 @@ export default async function handler(req, res) {
         }
 
         const body = {
-            title: 'Баллистика PRO — тест',
-            description: 'Тестовый платеж для проверки работы системы оплаты.',
-            payload: `test_${Date.now()}_1`,
+            title: 'Test Payment - 1 Star',
+            description: 'Test payment to verify the payment system functionality.',
+            payload: `test_payment_${Date.now()}`,
             currency: 'XTR', // Stars
             prices: [
-                { label: 'Тест 1 ⭐', amount: 1 }
+                { label: 'Test 1 Star', amount: 1 }
             ],
         };
 
