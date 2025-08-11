@@ -235,7 +235,7 @@ export default function App() {
     };
 
     // Обработчик тестовой оплаты
-    const handleTestPayment = async () => {
+    const handleTestPayment = () => {
         const tg = window.Telegram?.WebApp;
         if (!tg) {
             alert('Telegram WebApp не доступен');
@@ -246,39 +246,36 @@ export default function App() {
         setPaymentStatus('Инициализация платежа...');
 
         try {
-            // Отправляем запрос на создание invoice
-            const response = await fetch('/api/create-invoice', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    amount: 1, // 1 звезда
-                    description: 'Тестовый платеж - 1 звезда',
-                    user_id: tg.initDataUnsafe?.user?.id
-                })
-            });
+            // Для тестирования используем простую схему с показом сообщения
+            // В реальном приложении здесь должен быть вызов бота с командой для создания invoice
 
-            const invoiceData = await response.json();
+            // Имитируем процесс оплаты для тестирования
+            setTimeout(() => {
+                // Показываем пользователю инструкции
+                const message = `Для тестовой оплаты 1 звезды:\n\n1. Напишите боту @${botUsername || 'your_bot'}\n2. Отправьте команду /pay_1_star\n3. Следуйте инструкциям бота`;
 
-            if (invoiceData.invoice_link) {
-                // Открываем invoice через Telegram
-                tg.openInvoice(invoiceData.invoice_link, (status) => {
-                    console.log('Payment status:', status);
+                if (tg.showAlert) {
+                    tg.showAlert(message, () => {
+                        setPaymentLoading(false);
+                        setPaymentStatus('Инструкции показаны');
+                    });
+                } else {
+                    alert(message);
                     setPaymentLoading(false);
+                    setPaymentStatus('Инструкции показаны');
+                }
+            }, 1000);
 
-                    if (status === 'paid') {
-                        setPaymentStatus('Платеж успешно завершен! ⭐');
-                        setEnt(prev => ({ ...prev, sub_active: true }));
-                    } else if (status === 'cancelled') {
-                        setPaymentStatus('Платеж отменен');
-                    } else if (status === 'failed') {
-                        setPaymentStatus('Платеж не удался');
-                    }
-                });
-            } else {
-                throw new Error('Не удалось создать invoice');
+            // Альтернативно - попробуем открыть чат с ботом
+            if (botUsername) {
+                const botUrl = `https://t.me/${botUsername}?start=pay_test_1_star`;
+                if (tg.openTelegramLink) {
+                    tg.openTelegramLink(botUrl);
+                } else if (tg.openLink) {
+                    tg.openLink(botUrl);
+                }
             }
+
         } catch (error) {
             console.error('Payment error:', error);
             setPaymentLoading(false);
