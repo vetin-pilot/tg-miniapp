@@ -590,7 +590,6 @@ export default function App() {
                 <div className="card" style={{ marginTop: 16 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                         <h3 style={{ margin: 0 }}>Таблица поправок (шаг 50 м)</h3>
-                        <div className="muted" style={{ fontSize: 12 }}>вертикаль в см, энергия в Дж</div>
                     </div>
                     <div style={{ overflow: 'auto', marginTop: 8 }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 480 }}>
