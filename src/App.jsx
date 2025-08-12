@@ -2,6 +2,17 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { presets } from './presets.js';
 
+const animalEnergy = {
+    'Кабан': 1500,
+    'Косуля': 1000,
+    'Лось': 3000,
+    'Заяц': 100,
+    'Утка': 20,
+    'Тетерев': 30,
+    'Куропатка': 20,
+    'Слон': 7000
+};
+
 const R = 287.058, g = 9.80665;
 const airDensityFromTP = (tempC, pressureHpa) => (pressureHpa * 100) / (R * (tempC + 273.15));
 
@@ -175,6 +186,20 @@ export default function App() {
     // PBR и энергия
     const [pbrSize, setPbrSize] = useState('20');      // диаметр убойной зоны, см
     const [minEnergyJ, setMinEnergyJ] = useState('1500'); // минимальная энергия, Дж
+    const [selectedAnimal, setSelectedAnimal] = useState('Кабан');
+
+    const handleAnimalChange = (e) => {
+        const animal = e.target.value;
+        setSelectedAnimal(animal);
+        if (animal && animalEnergy[animal]) {
+            setMinEnergyJ(String(animalEnergy[animal]));
+        }
+    };
+
+    const handleMinEnergyChange = (e) => {
+        setMinEnergyJ(e.target.value);
+        setSelectedAnimal('');
+    };
 
     const [selectedCaliber, setSelectedCaliber] = useState('');
     const [selectedPreset, setSelectedPreset] = useState('');
@@ -499,7 +524,15 @@ export default function App() {
                             <input type="number" step="1" value={pbrSize} onChange={e => setPbrSize(e.target.value)} />
                         </label>
                         <label>Мин. энергия для дичи, Дж
-                            <input type="number" step="10" value={minEnergyJ} onChange={e => setMinEnergyJ(e.target.value)} />
+                            <input type="number" step="10" value={minEnergyJ} onChange={handleMinEnergyChange} />
+                        </label>
+                        <label style={{ gridColumn: '1 / -1' }}>Выбор дичи для авто-расчета энергии
+                            <select value={selectedAnimal} onChange={handleAnimalChange} className="input-css">
+                                <option value="">-- Ручной ввод --</option>
+                                {Object.keys(animalEnergy).map(animal => (
+                                    <option key={animal} value={animal}>{animal} - {animalEnergy[animal]} Дж</option>
+                                ))}
+                            </select>
                         </label>
                     </div>
                     <div className="muted" style={{ marginTop: 8 }}>
