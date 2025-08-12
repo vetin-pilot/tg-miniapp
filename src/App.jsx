@@ -523,6 +523,14 @@ export default function App() {
                         <label>Размер убойной зоны (PBR), см
                             <input type="number" step="1" value={pbrSize} onChange={e => setPbrSize(e.target.value)} />
                         </label>
+                    </div>
+                    <div className="muted" style={{ marginTop: 8 }}>
+                        Дальность прямого выстрела, когда не нужно вводить поправку (для зоны {pbrSize} см): до {Math.round(pbrFar || 0)} м.
+                    </div>
+                </div>
+
+                <div className="card" style={{ marginTop: 16 }}>
+                    <div className="grid">
                         <label>Мин. энергия для дичи, Дж
                             <input type="number" step="10" value={minEnergyJ} onChange={handleMinEnergyChange} />
                         </label>
@@ -534,9 +542,6 @@ export default function App() {
                                 ))}
                             </select>
                         </label>
-                    </div>
-                    <div className="muted" style={{ marginTop: 8 }}>
-                        Дальность прямого выстрела (для цели {pbrSize} см): до {Math.round(pbrFar || 0)} м.
                     </div>
                 </div>
 
