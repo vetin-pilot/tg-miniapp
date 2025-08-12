@@ -537,7 +537,7 @@ export default function App() {
                             <input type="number" step="0.1" value={pressureMmHg} onChange={e => setPressureMmHg(e.target.value)} />
                         </label>
                         <label style={{ gridColumn: '1/-1' }}>Макс. дистанция (м): {xMax}
-                            <input type="range" min={100} max={5000} step={50} value={xMax} onChange={e => setXMax(parseInt(e.target.value, 10))} />
+                            <input type="range" min={100} max={3000} step={50} value={xMax} onChange={e => setXMax(parseInt(e.target.value, 10))} />
                         </label>
                     </div>
 
