@@ -82,16 +82,6 @@ const toCSV = (h, rows) =>
         return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
     }).join(',')).join('\n') + '\n';
 
-// Направление ветра «на X часов» -> градусы (12: лобовой, 3: справа поперечный, 6: в спину, 9: слева)
-const clockToAngle = (hours) => {
-    const map = { 12: 0, 1: 30, 2: 60, 3: 90, 4: 120, 5: 150, 6: 180, 7: 210, 8: 240, 9: 270, 10: 300, 11: 330 };
-    const h = parseInt(String(hours).replace(/\D/g, ''), 10);
-    return map[h] ?? 90;
-};
-
-// Упрощённый коэффициент «аэродинамического скачка» (вертикальная компонента от поперечного ветра)
-// Δy ≈ AJ_K * Vcross * t. Подобрано консервативно так, чтобы давать ощутимую поправку, но не завышать.
-const AJ_K = 0.01; // м вертикали на (м/с * сек)
 
 export default function App() {
     // оставил стейт доступа, но он больше нигде не ограничивает функционал
@@ -179,13 +169,10 @@ export default function App() {
     const [zeroRangeStr, setZeroRangeStr] = useState('100'); // расстояние пристрелки
     const [h0, setH0] = useState('5'); // рост прицела, см
     const [tempC, setTempC] = useState('15');
-    const [pressureHpa, setPressureHpa] = useState('1013.25');
-    const [xMax, setXMax] = useState(1500); // дефолт 1500 м
+    const [pressureMmHg, setPressureMmHg] = useState('760');
+    const [xMax, setXMax] = useState(500); // дефолт 500 м
 
-    // ветер, PBR и энергия
-    const [windSpeed, setWindSpeed] = useState('0');   // скорость ветра
-    const [windUnit, setWindUnit] = useState('ms');    // ms | mph
-    const [windAngle, setWindAngle] = useState('90');  // 90° = поперечный справа
+    // PBR и энергия
     const [pbrSize, setPbrSize] = useState('20');      // диаметр убойной зоны, см
     const [minEnergyJ, setMinEnergyJ] = useState('1500'); // минимальная энергия, Дж
 
@@ -248,16 +235,10 @@ export default function App() {
     const v0n = n(v0, 0);
     const h0n = n(h0, 0) / 100; // см -> м
     const tempN = n(tempC, 15);
-    const pressN = n(pressureHpa, 1013.25);
+    const pressHpa = n(pressureMmHg, 760) * (1013.25 / 760); // мм рт. ст. -> гПа
     const zeroRange = Math.max(1, n(zeroRangeStr, 50));
-    const rho = useMemo(() => airDensityFromTP(tempN, pressN), [tempN, pressN]);
+    const rho = useMemo(() => airDensityFromTP(tempN, pressHpa), [tempN, pressHpa]);
 
-    // Поперечная составляющая ветра (м/с) — влияет на снос и вертикаль (аэродинамический скачок)
-    const crossMs = useMemo(() => {
-        const windMs = windUnit === 'mph' ? n(windSpeed, 0) * 0.44704 : n(windSpeed, 0);
-        const angleRad = n(windAngle, 90) * Math.PI / 180;
-        return windMs * Math.sin(angleRad);
-    }, [windSpeed, windUnit, windAngle]);
 
     // подбор угла под «расстояние пристрелки»
     const solveAngleForZero = (zeroR) => {
@@ -296,10 +277,10 @@ export default function App() {
         [v0n, angleDeg, h0n, massKg, g1, diameter, rho, xMax]
     );
 
-    // поправка в см для графика (с учётом вертикальной компоненты от поперечного ветра)
+    // поправка в см для графика
     const dataCm = useMemo(
-        () => data.map(d => ({ ...d, y_cm: Math.round((d.y + AJ_K * crossMs * (d.t ?? 0)) * 100) })),
-        [data, crossMs]
+        () => data.map(d => ({ ...d, y_cm: Math.round(d.y * 100) })),
+        [data]
     );
 
     // сетка 50 м
@@ -309,22 +290,15 @@ export default function App() {
     );
     const samples = useMemo(() => sampleHeights(data, ranges), [data, ranges]);
 
-    // подробные значения для таблицы: снос ветром и энергия
+    // подробные значения для таблицы: энергия
     const samplesDetailed = useMemo(() => {
-        const windMs = (windUnit === 'mph' ? n(windSpeed, 0) * 0.44704 : n(windSpeed, 0));
-        const angleRad = n(windAngle, 90) * Math.PI / 180;
-        const cross = windMs * Math.sin(angleRad); // поперечная составляющая
         return ranges.map((R) => {
             const y0 = heightAt(data, R);
-            const t = valueAt(data, R, 't');
             const v = valueAt(data, R, 'v');
-            const tSafe = Number.isFinite(t) ? t : 0;
-            const y = y0 + AJ_K * cross * tSafe; // вертикаль с учётом ветра
-            const drift_cm = (cross * tSafe) * 100;
             const energy = 0.5 * massKg * (Number.isFinite(v) ? v : 0) ** 2;
-            return { distance: R, height: y, drift_cm, energy };
+            return { distance: R, height: y0, energy };
         });
-    }, [data, ranges, windSpeed, windUnit, windAngle, massKg]);
+    }, [data, ranges, massKg]);
 
     // дистанция, где энергия падает ниже порога
     const energyCutX = useMemo(() => {
@@ -521,36 +495,6 @@ export default function App() {
 
                 <div className="card" style={{ marginTop: 16 }}>
                     <div className="grid">
-                        <label>Скорость ветра
-                            <div style={{ display: 'flex', gap: 8 }}>
-                                <input type="number" step="0.1" value={windSpeed} onChange={e => setWindSpeed(e.target.value)} style={{ flex: 1 }} />
-                                <select value={windUnit} onChange={e => setWindUnit(e.target.value)} className="input-css" style={{ width: 90 }}>
-                                    <option value="ms">м/с</option>
-                                    <option value="mph">mph</option>
-                                </select>
-                            </div>
-                        </label>
-                        <label>Направление ветра (по циферблату)
-                            <select
-                                className="input-css"
-                                onChange={e => setWindAngle(clockToAngle(e.target.value))}
-                                defaultValue="3"
-                            >
-                                <option value="12">12 часов (лобовой)</option>
-                                <option value="1">1 час</option>
-                                <option value="2">2 часа</option>
-                                <option value="3">3 часа (справа)</option>
-                                <option value="4">4 часа</option>
-                                <option value="5">5 часов</option>
-                                <option value="6">6 часов (в спину)</option>
-                                <option value="7">7 часов</option>
-                                <option value="8">8 часов</option>
-                                <option value="9">9 часов (слева)</option>
-                                <option value="10">10 часов</option>
-                                <option value="11">11 часов</option>
-                            </select>
-                            <div className="muted" style={{ marginTop: 4 }}>Текущий угол: {Math.round(n(windAngle, 90))}°</div>
-                        </label>
                         <label>Размер убойной зоны (PBR), см
                             <input type="number" step="1" value={pbrSize} onChange={e => setPbrSize(e.target.value)} />
                         </label>
@@ -574,7 +518,7 @@ export default function App() {
                                 </select>
                             </div>
                         </label>
-                        <label>Диаметр (мм)
+                        <label>Диаметр пули (мм)
                             <input type="number" step="0.01" value={diameterMm} onChange={e => setDiameterMm(e.target.value)} />
                         </label>
                         <label>Баллистический коэффициент (G1)
@@ -589,8 +533,8 @@ export default function App() {
                         <label>Температура (°C)
                             <input type="number" step="0.1" value={tempC} onChange={e => setTempC(e.target.value)} />
                         </label>
-                        <label>Давление (гПа)
-                            <input type="number" step="0.1" value={pressureHpa} onChange={e => setPressureHpa(e.target.value)} />
+                        <label>Давление (мм рт. ст.)
+                            <input type="number" step="0.1" value={pressureMmHg} onChange={e => setPressureMmHg(e.target.value)} />
                         </label>
                         <label style={{ gridColumn: '1/-1' }}>Макс. дистанция (м): {xMax}
                             <input type="range" min={100} max={5000} step={50} value={xMax} onChange={e => setXMax(parseInt(e.target.value, 10))} />
@@ -600,7 +544,7 @@ export default function App() {
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginTop: 12, fontSize: 14 }}>
                         <div><div className="muted">Дальность</div><b>{range.toFixed(1)} м</b></div>
                         <div><div className="muted">Макс. поправка</div><b>{(maxH * 100).toFixed(0)} см</b></div>
-                        <div><div className="muted">Время полёта</div><b>{flightTime.toFixed(2)} с</b></div>
+                        <div><div className="muted">Время полета на {xMax} м</div><b>{flightTime.toFixed(2)} с</b></div>
                     </div>
                     <div style={{ marginTop: 8, fontSize: 14 }} className="muted">
                         Начальная энергия: <b>{E0J.toFixed(1)}</b> Дж (<b>{E0FPE.toFixed(1)}</b> фт·фунт) • Угол (рассчитан): <b>{angleDeg.toFixed(2)}°</b>
@@ -646,7 +590,7 @@ export default function App() {
                 <div className="card" style={{ marginTop: 16 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                         <h3 style={{ margin: 0 }}>Таблица поправок (шаг 50 м)</h3>
-                        <div className="muted" style={{ fontSize: 12 }}>вертикаль/снос в см, энергия в Дж</div>
+                        <div className="muted" style={{ fontSize: 12 }}>вертикаль в см, энергия в Дж</div>
                     </div>
                     <div style={{ overflow: 'auto', marginTop: 8 }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 480 }}>
@@ -654,7 +598,6 @@ export default function App() {
                             <tr>
                                 <th style={{ textAlign: 'left', padding: '8px 6px', borderBottom: '1px solid var(--border)' }}>Дистанция, м</th>
                                 <th style={{ textAlign: 'left', padding: '8px 6px', borderBottom: '1px solid var(--border)' }}>Снижение, см</th>
-                                <th style={{ textAlign: 'left', padding: '8px 6px', borderBottom: '1px solid var(--border)' }}>Снос ветром, см</th>
                                 <th style={{ textAlign: 'left', padding: '8px 6px', borderBottom: '1px solid var(--border)' }}>Энергия, Дж</th>
                             </tr>
                             </thead>
@@ -665,7 +608,6 @@ export default function App() {
                                     <tr key={row.distance} style={{ color: row.energy < n(minEnergyJ, 0) ? 'red' : 'inherit' }}>
                                         <td style={{ padding: '6px' }}>{Math.round(row.distance)}</td>
                                         <td style={{ padding: '6px' }}>{cm}</td>
-                                        <td style={{ padding: '6px' }}>{row.drift_cm.toFixed(1)}</td>
                                         <td style={{ padding: '6px' }}>{Math.round(row.energy)}</td>
                                     </tr>
                                 );

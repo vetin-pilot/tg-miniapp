@@ -73,6 +73,39 @@
         color: var(--text);
       }
 
+      /* Larger, easier-to-grab slider thumb (track left as default) */
+      /* WebKit browsers */
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 22px;
+        height: 22px; /* increased diameter */
+        border-radius: 50%;
+        background: var(--button);
+        border: 2px solid rgba(0,0,0,0.2);
+        box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        cursor: pointer;
+      }
+      /* Firefox */
+      input[type="range"]::-moz-range-thumb {
+        width: 22px;
+        height: 22px; /* increased diameter */
+        border-radius: 50%;
+        background: var(--button);
+        border: 2px solid rgba(0,0,0,0.2);
+        box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        cursor: pointer;
+      }
+      /* MS Edge legacy */
+      input[type="range"]::-ms-thumb {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: var(--button);
+        border: 2px solid rgba(0,0,0,0.2);
+        cursor: pointer;
+      }
+
       .btn {
         padding: 10px 14px;
         border-radius: 12px;
