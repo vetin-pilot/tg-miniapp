@@ -464,53 +464,117 @@ export default function App() {
                     </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-                    <div className="muted" style={{ marginRight: 8 }}>
-                        Если вам понравилось приложение, можете отблагодарить автора:
+                {/* Карточки товаров/услуг с ценами в рублях для верификации ЮKassa */}
+                <div className="card" style={{ marginTop: 16 }}>
+                    <h3 style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: 600 }}>Поддержать разработку</h3>
+                    
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginBottom: 20 }}>
+                        {/* Карточка малого доната */}
+                        <div className="card" style={{ 
+                            border: '1px solid var(--border)', 
+                            padding: 16,
+                            background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.05), rgba(79, 70, 229, 0.1))'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+                                <span style={{ fontSize: 24, marginRight: 8 }}>☕</span>
+                                <h4 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>Кофе разработчику</h4>
+                            </div>
+                            <p style={{ margin: '8px 0', color: 'var(--muted)', fontSize: 14 }}>
+                                Небольшая благодарность за полезное приложение. Поможет покрыть расходы на хостинг и мотивирует на дальнейшее развитие.
+                            </p>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
+                                <div>
+                                    <span style={{ fontSize: 18, fontWeight: 600 }}>300 ₽</span>
+                                    <span style={{ color: 'var(--muted)', marginLeft: 8, fontSize: 12 }}>150 ⭐</span>
+                                </div>
+                                <button className="btn btn-primary" onClick={() => openDonate(150)}>Поддержать</button>
+                            </div>
+                        </div>
 
-                        {/* Добавляем тестовую кнопку перед основными */}
-                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
-                            <button 
-                                onClick={handleTestPayment} // Теперь handleTestPayment вызывает openInvoiceFlow
-                                disabled={paymentLoading}
-                                style={{
-                                    background: 'linear-gradient(135deg, #FFD700, #FFA500)',
-                                    color: '#000',
-                                    border: 'none',
-                                    padding: '8px 12px',
-                                    borderRadius: '6px',
-                                    cursor: paymentLoading ? 'not-allowed' : 'pointer',
-                                    opacity: paymentLoading ? 0.6 : 1,
-                                    fontSize: '12px',
-                                    fontWeight: '600',
-                                    minWidth: '80px',
-                                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-                                }}
-                            >
-                                {paymentLoading ? '⏳' : '🧪 1⭐'}
-                            </button>
-                            {paymentStatus && (
-                                <span style={{
-                                    padding: '4px 8px',
-                                    borderRadius: '4px',
-                                    backgroundColor: paymentStatus.includes('успешно') ? '#4CAF50' : 
-                                                   paymentStatus.includes('отменен') || paymentStatus.includes('не удался') ? '#f44336' : 
-                                                   '#2196F3',
-                                    color: 'white',
-                                    fontSize: '10px',
-                                    fontWeight: '500'
-                                }}>
-                                    {paymentStatus}
-                                </span>
-                            )}
+                        {/* Карточка среднего доната */}
+                        <div className="card" style={{ 
+                            border: '1px solid var(--border)', 
+                            padding: 16,
+                            background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.05), rgba(34, 197, 94, 0.1))'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+                                <span style={{ fontSize: 24, marginRight: 8 }}>🎯</span>
+                                <h4 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>Поддержка проекта</h4>
+                            </div>
+                            <p style={{ margin: '8px 0', color: 'var(--muted)', fontSize: 14 }}>
+                                Серьезная поддержка развития функций. Помогает добавлять новые калибры, улучшать интерфейс и точность расчетов.
+                            </p>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
+                                <div>
+                                    <span style={{ fontSize: 18, fontWeight: 600 }}>600 ₽</span>
+                                    <span style={{ color: 'var(--muted)', marginLeft: 8, fontSize: 12 }}>300 ⭐</span>
+                                </div>
+                                <button className="btn btn-primary" onClick={() => openDonate(300)}>Поддержать</button>
+                            </div>
+                        </div>
+
+                        {/* Карточка большого доната */}
+                        <div className="card" style={{ 
+                            border: '1px solid var(--border)', 
+                            padding: 16,
+                            background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.05), rgba(245, 158, 11, 0.1))'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+                                <span style={{ fontSize: 24, marginRight: 8 }}>🏆</span>
+                                <h4 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>Премиум поддержка</h4>
+                            </div>
+                            <p style={{ margin: '8px 0', color: 'var(--muted)', fontSize: 14 }}>
+                                Максимальная поддержка проекта. Позволяет активно развивать приложение, добавлять продвинутые функции и поддерживать высокое качество.
+                            </p>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
+                                <div>
+                                    <span style={{ fontSize: 18, fontWeight: 600 }}>1000 ₽</span>
+                                    <span style={{ color: 'var(--muted)', marginLeft: 8, fontSize: 12 }}>500 ⭐</span>
+                                </div>
+                                <button className="btn btn-primary" onClick={() => openDonate(500)}>Поддержать</button>
+                            </div>
                         </div>
                     </div>
-                    <button className="btn btn-primary" onClick={() => openDonate(150)}>150 ⭐</button>
-                    <button className="btn btn-primary" onClick={() => openDonate(300)}>300 ⭐</button>
-                    <button className="btn btn-primary" onClick={() => openDonate(500)}>500 ⭐</button>
 
-                    <div style={{ flex: 1 }} />
-
+                    {/* Тестовая оплата и статус */}
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+                        <div className="muted" style={{ marginRight: 8 }}>
+                            Тестовая оплата:
+                        </div>
+                        <button 
+                            onClick={handleTestPayment}
+                            disabled={paymentLoading}
+                            style={{
+                                background: 'linear-gradient(135deg, #FFD700, #FFA500)',
+                                color: '#000',
+                                border: 'none',
+                                padding: '8px 12px',
+                                borderRadius: '6px',
+                                cursor: paymentLoading ? 'not-allowed' : 'pointer',
+                                opacity: paymentLoading ? 0.6 : 1,
+                                fontSize: '12px',
+                                fontWeight: '600',
+                                minWidth: '80px',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                            }}
+                        >
+                            {paymentLoading ? '⏳' : '🧪 2 ₽ (1⭐)'}
+                        </button>
+                        {paymentStatus && (
+                            <span style={{
+                                padding: '4px 8px',
+                                borderRadius: '4px',
+                                backgroundColor: paymentStatus.includes('успешно') ? '#4CAF50' : 
+                                               paymentStatus.includes('отменен') || paymentStatus.includes('не удался') ? '#f44336' : 
+                                               '#2196F3',
+                                color: 'white',
+                                fontSize: '10px',
+                                fontWeight: '500'
+                            }}>
+                                {paymentStatus}
+                            </span>
+                        )}
+                    </div>
                 </div>
 
                 <div className="card" style={{ marginTop: 16 }}>
