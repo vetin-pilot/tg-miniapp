@@ -485,7 +485,6 @@ export default function App() {
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
                                 <div>
                                     <span style={{ fontSize: 18, fontWeight: 600 }}>300 ₽</span>
-                                    <span style={{ color: 'var(--muted)', marginLeft: 8, fontSize: 12 }}>150 ⭐</span>
                                 </div>
                                 <button className="btn btn-primary" onClick={() => openDonate(150)}>Поддержать</button>
                             </div>
@@ -507,7 +506,6 @@ export default function App() {
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
                                 <div>
                                     <span style={{ fontSize: 18, fontWeight: 600 }}>600 ₽</span>
-                                    <span style={{ color: 'var(--muted)', marginLeft: 8, fontSize: 12 }}>300 ⭐</span>
                                 </div>
                                 <button className="btn btn-primary" onClick={() => openDonate(300)}>Поддержать</button>
                             </div>
@@ -529,7 +527,6 @@ export default function App() {
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
                                 <div>
                                     <span style={{ fontSize: 18, fontWeight: 600 }}>1000 ₽</span>
-                                    <span style={{ color: 'var(--muted)', marginLeft: 8, fontSize: 12 }}>500 ⭐</span>
                                 </div>
                                 <button className="btn btn-primary" onClick={() => openDonate(500)}>Поддержать</button>
                             </div>
@@ -558,7 +555,7 @@ export default function App() {
                                 boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
                             }}
                         >
-                            {paymentLoading ? '⏳' : '🧪 2 ₽ (1⭐)'}
+                            {paymentLoading ? '⏳' : '🧪 2 ₽'}
                         </button>
                         {paymentStatus && (
                             <span style={{
